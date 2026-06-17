@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Stickman Chaos: Arena Ultimate</title>
+    <style>
+        :root { --orb-r: 600px; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; }
+        #arena { width: 100vw; height: 100vh; position: relative; background: radial-gradient(circle at center, #4b6584 0%, #1c2836 100%); overflow: hidden; transition: box-shadow 0.5s, background 0.5s; }
+        .grid-floor { position: absolute; bottom: -50%; left: -50%; width: 200%; height: 200%; background-image: linear-gradient(rgba(0, 255, 255, 0.15) 2px, transparent 2px), linear-gradient(90deg, rgba(0, 255, 255, 0.15) 2px, transparent 2px); background-size: 80px 80px; transform: perspective(600px) rotateX(75deg); z-index: 0; pointer-events: none; animation: moveGrid 3s linear infinite; transition: all 0.5s; }
+        @keyframes moveGrid { 0% { transform: perspective(600px) rotateX(75deg) translateY(0); } 100% { transform: perspective(600px) rotateX(75deg) translateY(80px); } }
+
+        #timer-display { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 45px; color: #fff; text-shadow: 0 0 20px #0ff; z-index: 1000; pointer-events: none; }
+        #killfeed { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 6px; z-index: 2500; pointer-events: none; }
+        .kill-entry { background: rgba(0,0,0,0.8); color: #fff; padding: 6px 12px; border-left: 4px solid #ff0050; border-radius: 4px; font-size: 14px; font-weight: bold; animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-in 3.5s forwards; box-shadow: 0 0 10px rgba(255,0,80,0.5); }
+        .gift-entry { border-left-color: #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.5); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; } }
+
+        /* CONTROLES DE ÁUDIO */
+        #audio-controls { position: absolute; top: 15px; left: 15px; z-index: 50000; display: flex; gap: 10px; }
+        .btn-audio { background: rgba(0,0,0,0.6); border: 2px solid; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; font-size: 20px; display: flex; justify-content: center; align-items: center; transition: 0.2s; color: white;}
+        .btn-audio:hover { transform: scale(1.1); background: rgba(0,0,0,0.9); }
+        #btn-music { border-color: #0ff; box-shadow: 0 0 10px #0ff; }
+        #btn-sfx { border-color: #ff0050; box-shadow: 0 0 10px #ff0050; }
+
+        .airdrop { position: absolute; width: 35px; height: 35px; background: #0f0; border: 3px solid #fff; box-shadow: 0 0 25px #0f0; z-index: 5; border-radius: 6px; display: flex; justify-content: center; align-items: center; font-size: 22px; animation: dropIn 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards, floatDrop 2s infinite alternate ease-in-out; }
+        @keyframes dropIn { 0% { transform: translateY(-500px) scale(0.5) rotate(45deg); opacity: 0; } 100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } }
+        @keyframes floatDrop { from { transform: translateY(0px); } to { transform: translateY(-10px); box-shadow: 0 0 40px #0f0; } }
+
+        #announcer { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%) scale(0); font-size: 80px; color: #fff; text-shadow: 0 5px 0 #000, 0 0 30px #f00; z-index: 2000; pointer-events: none; text-align: center; white-space: nowrap; opacity: 0; font-style: italic; font-weight: 900; }
+        .announce-anim { animation: announcePop 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes announcePop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 15% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; text-shadow: 0 5px 0 #000, 0 0 50px #ffea00; } 80% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; } }
+
+        /* =====================================
+           ESTRUTURA DO STICKMAN
+           ===================================== */
+        .stickman { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 10; transition: opacity 0.3s; width: 80px; height: 130px; justify-content: flex-end; transform-origin: bottom center; }
+        .head { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #fff; position: absolute; top: 5px; box-shadow: 0 0 10px #000; background-color: #111; z-index: 10; transition: box-shadow 0.2s, border-color 0.2s; }
+        .face-pic { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background-size: cover; background-position: center; z-index: 2; }
+        .name-tag { position: absolute; top: -15px; font-size: 10px; color: #fff; background: rgba(0,0,0,0.8); padding: 1px 4px; border-radius: 3px; white-space: nowrap; border: 1px solid #fff; z-index: 50; font-weight: bold; }
+        .sprite-body { width: 100%; height: 90px; background-size: contain; background-repeat: no-repeat; background-position: center bottom; position: absolute; bottom: 0; z-index: 5; }
+
+        .health-bar-container { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); width: 50px; height: 5px; background: rgba(0,0,0,0.7); border: 1px solid #333; border-radius: 3px; overflow: hidden; z-index: 20; }
+        .health-bar { height: 100%; width: 100%; background: #0f0; transition: width 0.12s linear, background 0.12s linear; }
+
+        /* =====================================
+           ANIMAÇÕES P1 E P2
+           ===================================== */
+        .type-p1 .sprite-body { background-image: url('assets_baixados/stickman_base_p1.webp'); }
+        .type-p1.walking .sprite-body { animation: walkP1 0.4s infinite steps(1); }
+        .type-p1.atk-anim .sprite-body { animation: atkP1 0.3s steps(1) forwards; }
+        @keyframes walkP1 {
+            0% { background-image: url('assets_baixados/stickman_base_p1.webp'); }
+            33% { background-image: url('assets_baixados/stickman_walk_p1_frame2.webp'); }
+            66% { background-image: url('assets_baixados/stickman_walk_p1_frame3.webp'); }
+            100% { background-image: url('assets_baixados/stickman_walk_p1_frame4.webp'); }
+        }
+        @keyframes atkP1 {
+            0% { background-image: url('assets_baixados/stickman_attack_p1_frame1.webp'); }
+            50% { background-image: url('assets_baixados/stickman_attack_p1_frame2.webp'); }
+            100% { background-image: url('assets_baixados/stickman_attack_p1_frame3.webp'); }
+        }
+
+        .type-p2 .sprite-body { background-image: url('assets_baixados/stickman_base_p2.webp'); }
+        .type-p2.walking .sprite-body { animation: walkP2 0.4s infinite steps(1); }
+        .type-p2.atk-anim .sprite-body { animation: atkP2 0.3s steps(1) forwards; }
+        @keyframes walkP2 {
+            0% { background-image: url('assets_baixados/stickman_base_p2.webp'); }
+            33% { background-image: url('assets_baixados/stickman_walk_p2_frame2.webp'); }
+            66% { background-image: url('assets_baixados/stickman_walk_p2_frame3.webp'); }
+            100% { background-image: url('assets_baixados/stickman_walk_p2_frame4.webp'); }
+        }
+        @keyframes atkP2 {
+            0% { background-image: url('assets_baixados/stickman_attack_p2_frame1.webp'); }
+            50% { background-image: url('assets_baixados/stickman_attack_p2_frame2.webp'); }
+            100% { background-image: url('assets_baixados/stickman_attack_p2_frame3.webp'); }
+        }
+
+        .stickman-boss.type-p1 .sprite-body, .stickman-titan.type-p1 .sprite-body { background-image: url('assets_baixados/stickman_armor_p1_base.webp'); }
+        .stickman-boss.type-p1.walking .sprite-body, .stickman-titan.type-p1.walking .sprite-body { animation: walkArmorP1 0.4s infinite steps(1); }
+        .stickman-boss.type-p1.atk-anim .sprite-body, .stickman-titan.type-p1.atk-anim .sprite-body { animation: atkArmorP1 0.3s steps(1) forwards; }
+        @keyframes walkArmorP1 {
+            0% { background-image: url('assets_baixados/stickman_armor_p1_base.webp'); transform: scaleX(1); }
+            33% { background-image: url('assets_baixados/stickman_armor_p1_walk_frame2.webp'); transform: scaleX(-1); }
+            66% { background-image: url('assets_baixados/stickman_armor_p1_walk_frame3.webp'); transform: scaleX(-1); }
+            100% { background-image: url('assets_baixados/stickman_armor_p1_walk_frame4.webp'); transform: scaleX(1); }
+        }
+        @keyframes atkArmorP1 {
+            0% { background-image: url('assets_baixados/stickman_armor_p1_attack_frame1.webp'); }
+            50% { background-image: url('assets_baixados/stickman_armor_p1_attack_frame2.webp'); }
+            100% { background-image: url('assets_baixados/stickman_armor_p1_attack_frame3.webp'); }
+        }
+
+        .stickman-boss.type-p2 .sprite-body, .stickman-titan.type-p2 .sprite-body { background-image: url('assets_baixados/stickman_armor_p2_base.webp'); }
+        .stickman-boss.type-p2.walking .sprite-body, .stickman-titan.type-p2.walking .sprite-body { animation: walkArmorP2 0.4s infinite steps(1); }
+        .stickman-boss.type-p2.atk-anim .sprite-body, .stickman-titan.type-p2.atk-anim .sprite-body { animation: atkArmorP2 0.3s steps(1) forwards; }
+        @keyframes walkArmorP2 {
+            0% { background-image: url('assets_baixados/stickman_armor_p2_base.webp'); }
+            33% { background-image: url('assets_baixados/stickman_armor_p2_walk_frame2.webp'); }
+            66% { background-image: url('assets_baixados/stickman_armor_p2_walk_frame3.webp'); }
+            100% { background-image: url('assets_baixados/stickman_armor_p2_walk_frame4.webp'); }
+        }
+        @keyframes atkArmorP2 {
+            0% { background-image: url('assets_baixados/stickman_armor_p2_attack_frame1.webp'); }
+            50% { background-image: url('assets_baixados/stickman_armor_p2_attack_frame2.webp'); }
+            100% { background-image: url('assets_baixados/stickman_armor_p2_attack_frame3.webp'); }
+        }
+
+        /* =====================================
+           MODO ANGELICAL
+           ===================================== */
+        .stickman-angelical .sprite-body { background-image: url('assets_baixados/boss_angelical_base.webp'); transform: scaleX(-1); }
+        .stickman-angelical.walking .sprite-body { animation: walkAngelical 0.5s infinite steps(1); }
+        .stickman-angelical.atk-anim .sprite-body { animation: atkAngelical 0.4s steps(1) forwards; }
+        @keyframes walkAngelical {
+            0% { background-image: url('assets_baixados/boss_angelical_base.webp'); transform: scaleX(-1); }
+            20% { background-image: url('assets_baixados/boss_angelical_walk_frame2.webp'); transform: scaleX(1); }
+            40% { background-image: url('assets_baixados/boss_angelical_walk_frame3.webp'); transform: scaleX(1); }
+            60% { background-image: url('assets_baixados/boss_angelical_walk_frame4.webp'); transform: scaleX(1); }
+            80% { background-image: url('assets_baixados/boss_angelical_walk_frame5.webp'); transform: scaleX(1); }
+            100% { background-image: url('assets_baixados/boss_angelical_base.webp'); transform: scaleX(-1); }
+        }
+        @keyframes atkAngelical {
+            0% { background-image: url('assets_baixados/boss_angelical_attack_frame1.webp'); transform: scaleX(1); }
+            25% { background-image: url('assets_baixados/boss_angelical_attack_frame2.webp'); transform: scaleX(1); }
+            50% { background-image: url('assets_baixados/boss_angelical_attack_frame3.webp'); transform: scaleX(1); }
+            75% { background-image: url('assets_baixados/boss_angelical_attack_frame4.webp'); transform: scaleX(1); }
+            100% { background-image: url('assets_baixados/boss_angelical_attack_frame5.webp'); transform: scaleX(1); }
+        }
+
+        .stickman-angelical .head,
+        .stickman-angelical .name-tag,
+        .stickman-angelical .health-bar-container {
+            transform: scale(0.7);
+            transform-origin: center;
+        }
+
+        /* =====================================
+           EFEITOS VISUAIS E PODERES
+           ===================================== */
+        .stickman.glow .sprite-body, .stickman.glow .head { filter: drop-shadow(0 0 5px #0f0) drop-shadow(0 0 10px #0f0); }
+        .stickman.aura .sprite-body, .stickman.aura .head { filter: drop-shadow(0 0 8px #0ff) drop-shadow(0 0 20px #00f); }
+        .crown { position: absolute; left: 50%; top: -35px; transform: translateX(-50%); font-size: 28px; pointer-events: none; z-index: 30; filter: drop-shadow(0 0 6px #ff0); }
+
+        .projectile { position: absolute; width: 35px; height: 35px; background-image: url('assets_baixados/energy_orb.webp'); background-size: cover; border-radius: 50%; box-shadow: 0 0 12px 4px #0ff; z-index: 1000; pointer-events: none; animation: spinProj 0.5s linear infinite;}
+        @keyframes spinProj { 100% { transform: rotate(360deg); } }
+
+        .spark { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; box-shadow: 0 0 15px #ffea00, 0 0 30px #ff0050; pointer-events: none; z-index: 200; animation: sparkBoom 0.25s ease-out forwards; }
+        @keyframes sparkBoom { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+        .ghost { position: absolute; opacity: 0.4; pointer-events: none; filter: grayscale(50%) brightness(150%); z-index: 5; transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
+        .floating-text { position: absolute; font-size: 16px; font-weight: bold; pointer-events: none; z-index: 500; text-shadow: 0px 2px 4px #000, 0px 0px 8px currentColor; animation: floatUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; transform: translateX(-50%); }
+        @keyframes floatUp { 0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; } 20% { transform: translate(-50%, -15px) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -45px) scale(1); opacity: 0; } }
+        .shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-3px, 3px, 0); } 20%, 80% { transform: translate3d(4px, -3px, 0); } 30%, 50%, 70% { transform: translate3d(-6px, 4px, 0); } 40%, 60% { transform: translate3d(6px, -4px, 0); } }
+        .shockwave { position: absolute; border: 6px solid #0ff; border-radius: 50%; pointer-events: none; z-index: 50; animation: shock 0.4s ease-out forwards; transform: translate(-50%, -50%); box-shadow: 0 0 20px #0ff, inset 0 0 20px #0ff; }
+        @keyframes shock { 0% { width: 0; height: 0; opacity: 1; border-width: 8px; } 100% { width: 250px; height: 250px; opacity: 0; border-width: 0px; } }
+        .rage { filter: drop-shadow(0 0 15px #f00) drop-shadow(0 0 20px #f00); animation: rageShake 0.2s infinite; }
+        @keyframes rageShake { 0% { transform: translate(1px, 1px) rotate(0deg); } 50% { transform: translate(-1px, -2px) rotate(-1deg); } 100% { transform: translate(-2px, 0px) rotate(1deg); } }
+
+        .bh { position: absolute; width: 250px; height: 250px; background: radial-gradient(circle, #000 20%, #80f 60%, transparent); border-radius: 50%; transform: translate(-50%, -50%); animation: bhSpin 2s linear forwards; pointer-events:none; z-index:1; mix-blend-mode: screen; box-shadow: 0 0 50px #80f; }
+        @keyframes bhSpin { 0% { transform: translate(-50%,-50%) scale(0) rotate(0deg); opacity:1; } 90% { transform: translate(-50%,-50%) scale(1.5) rotate(1080deg); opacity:1; } 100% { transform: translate(-50%,-50%) scale(0) rotate(1440deg); opacity:0; } }
+        .heal-zone { position: absolute; width: 350px; height: 350px; border-radius: 50%; background: radial-gradient(circle, rgba(0,255,0,0.3) 0%, transparent 70%); transform: translate(-50%, -50%); z-index: 1; pointer-events: none; animation: pulseHZ 1s infinite alternate; }
+        @keyframes pulseHZ { 0%{transform:translate(-50%,-50%) scale(0.9);} 100%{transform:translate(-50%,-50%) scale(1.1);} }
+        .lightning { position: absolute; width: 12px; height: 100vh; background: #fff; box-shadow: 0 0 30px 10px #0ff; transform: translateX(-50%); z-index: 90; pointer-events: none; animation: zap 0.4s ease-out forwards; }
+        @keyframes zap { 0%{opacity:1; width:20px;} 100%{opacity:0; width:0px;} }
+        .flash { position: absolute; width: 100vw; height: 100vh; background: #fff; z-index: 999; pointer-events: none; animation: screenFlash 0.3s ease-out forwards; }
+        @keyframes screenFlash { 0%{opacity:0.8;} 100%{opacity:0;} }
+        .meteor { position: absolute; width: 30px; height: 30px; background: #fff; border-radius: 50%; box-shadow: 0 0 30px #ff3300, -30px -30px 40px #ffea00; z-index: 95; pointer-events: none; animation: mFall 0.8s linear forwards; }
+        @keyframes mFall { 0%{ transform: translate(300px, -300px) scale(1); opacity:1; } 95%{ transform: translate(0,0) scale(1); opacity:1; } 100%{ transform: translate(0,0) scale(2); opacity:0; } }
+        .jump-anim { animation: jumpSlam 0.8s ease-in-out forwards; z-index: 99 !important; }
+        @keyframes jumpSlam { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-300px) scale(1.5); } 80% { transform: translateY(-300px) scale(1.5); } 100% { transform: translateY(0) scale(1); } }
+        .drone { position: absolute; width: 12px; height: 12px; background: #0ff; border-radius: 50%; box-shadow: 0 0 15px #0ff, 0 0 30px #fff; top: -60px; left: 35px; animation: droneFloat 1.5s infinite alternate ease-in-out; }
+        @keyframes droneFloat { 0%{transform:translateY(0) translateX(0);} 100%{transform:translateY(15px) translateX(-15px);} }
+        .bounty-target { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); font-size: 28px; animation: pulseBounty 0.5s infinite alternate; pointer-events: none; z-index: 40; filter: drop-shadow(0 0 8px red); }
+        @keyframes pulseBounty { 0% { transform: translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateX(-50%) scale(1.3); opacity: 0.6; } }
+        .orbital-warning { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 6px dashed #f00; border-radius: 50%; background: rgba(255,0,0,0.15); animation: owPulse 0.5s infinite alternate; z-index: 1; pointer-events: none; width: var(--orb-r); height: var(--orb-r); }
+        @keyframes owPulse { 0% { background: rgba(255,0,0,0.1); border-color: rgba(255,0,0,0.5); } 100% { background: rgba(255,0,0,0.3); border-color: #f00; box-shadow: 0 0 50px #f00 inset; } }
+        .orbital-blast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #fff 10%, #f00 60%, transparent); box-shadow: 0 0 150px #f00; z-index: 2000; animation: orbBlast 1s ease-out forwards; pointer-events: none; }
+        @keyframes orbBlast { 0% { width: 0; height: 0; opacity: 1; } 15% { width: calc(var(--orb-r) * 1.1); height: calc(var(--orb-r) * 1.1); opacity: 1; } 100% { width: calc(var(--orb-r) * 1.2); height: calc(var(--orb-r) * 1.2); opacity: 0; } }
+
+        /* =====================================
+           MODO SERRA COM SPRITE DE FOGO / DOURADO
+           ===================================== */
+        .saw-mode .sprite-body { opacity: 0 !important; }
+        .saw-mode .head::before {
+            content: ''; position: absolute; top: -45px; left: -45px; right: -45px; bottom: -45px;
+            background-image: url('assets_baixados/saw_blade_fire.webp'); background-size: cover; background-position: center; border-radius: 50%;
+            z-index: -1; animation: spinSaw 0.1s linear infinite;
+        }
+        .stickman-boss.saw-mode .head { filter: drop-shadow(0 0 15px #ff0050) drop-shadow(0 0 30px #ff5500); }
+
+        .stickman-titan.saw-mode .head::before { filter: hue-rotate(180deg) brightness(1.5) !important; }
+        .stickman-titan.saw-mode .head { filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #0000ff) !important; }
+
+        .stickman-angelical.saw-mode .head::before { filter: hue-rotate(50deg) brightness(2.5) saturate(0.5) !important; }
+        .stickman-angelical.saw-mode .head { filter: drop-shadow(0 0 20px #ffffff) drop-shadow(0 0 40px #ffd700) !important; }
+
+        @keyframes spinSaw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* ESTILO DO BOSS E TITÃ E ANGELICAL */
+        .stickman-boss { z-index: 9999; color: #ff0000 !important; }
+        .stickman-boss .head { border: 4px solid #ff0000 !important; box-shadow: 0 0 20px #cc0000, 0 0 40px #ff4400, 0 0 80px rgba(255, 68, 0, 0.6) !important; animation: bossBurn 1s infinite alternate; }
+        @keyframes bossBurn { 0% { box-shadow: 0 0 20px #cc0000, 0 0 40px #ff4400, 0 0 80px rgba(255, 68, 0, 0.6) !important; } 100% { box-shadow: 0 0 30px #cc0000, 0 0 60px #ff0000, 0 0 120px rgba(255, 0, 0, 0.9) !important; border-color: #ff4400 !important; } }
+
+        .stickman-titan { z-index: 10000; color: #fff !important; }
+        .stickman-titan .head { border: 4px solid #0ff !important; box-shadow: 0 0 30px #0ff, 0 0 60px #00f, 0 0 100px #fff !important; animation: titanBurn 1s infinite alternate; }
+        @keyframes titanBurn { 0% { box-shadow: 0 0 30px #0ff, 0 0 60px #00f, 0 0 100px #fff !important; } 100% { box-shadow: 0 0 50px #0ff, 0 0 80px #fff, 0 0 150px #00f !important; border-color: #fff !important; } }
+
+        .stickman-angelical { z-index: 10001; color: #fff !important; }
+        .stickman-angelical .head { border: 4px solid #ffd700 !important; box-shadow: 0 0 30px #ffd700, 0 0 60px #fff, 0 0 100px #ffea00 !important; animation: angelBurn 1s infinite alternate; }
+        @keyframes angelBurn { 0% { box-shadow: 0 0 30px #ffd700, 0 0 60px #fff, 0 0 100px #ffea00 !important; } 100% { box-shadow: 0 0 50px #ffd700, 0 0 80px #fff, 0 0 150px #ffea00 !important; border-color: #fff !important; } }
+
+        /* =====================================
+           TELA FINAL / PÓDIO (Z-INDEX GIGANTE)
+           ===================================== */
+        #end-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
+        #end-screen h1 { color: #d4af37; font-size: 55px; text-shadow: 0 0 30px #d4af37; margin-bottom: 50px; text-transform: uppercase; animation: popIn 1s forwards; }
+
+        .podium-container { display: flex; align-items: flex-end; gap: 30px; height: 400px; margin-bottom: 20px;}
+        .podium-place { display: flex; flex-direction: column; align-items: center; width: 160px; animation: riseUp 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; opacity: 0; transform: translateY(100px); position: relative; }
+
+        .podium-avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: 0 0 20px #fff; background: #333; margin-bottom: 10px; z-index: 50;}
+        .podium-name { font-size: 20px; font-weight: bold; text-align: center; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; width: 100%; text-shadow: 0 2px 4px #000; z-index: 50; }
+        .podium-pts { font-size: 22px; color: #0f0; text-shadow: 0 0 10px #0f0; margin-bottom: 5px; z-index: 50; }
+        .podium-kills { font-size: 16px; color: #ff0050; font-weight: bold; margin-bottom: 15px; z-index: 50;}
+
+        .podium-box { width: 100%; display: flex; justify-content: center; align-items: flex-start; font-size: 60px; font-weight: 900; color: #000; padding-top: 10px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); z-index: 60; }
+
+        /* O Troféu (Sprite do Personagem) abaixo da caixa do pódio */
+        .podium-sprite-container { width: 100%; height: 160px; display: flex; justify-content: center; align-items: flex-start; margin-top: -10px; z-index: 40; overflow: visible; }
+        .podium-sprite { height: 140px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); transform-origin: top center; }
+
+        .p2 { animation-delay: 0.5s; } .p2 .podium-box { height: 120px; background: linear-gradient(180deg, #c0c0c0, #777); border-radius: 15px 15px 0 0; } .p2 .podium-avatar { border-color: #c0c0c0; box-shadow: 0 0 20px #c0c0c0; }
+        .p1 { animation-delay: 1.0s; z-index: 100; } .p1 .podium-box { height: 180px; background: linear-gradient(180deg, #ffd700, #aa7f00); border-radius: 15px 15px 0 0; } .p1 .podium-avatar { width: 140px; height: 140px; border-color: #ffd700; box-shadow: 0 0 30px #ffd700; } .p1 .podium-name { font-size: 26px; color: #ffd700; }
+        .p1 .podium-sprite { height: 200px; filter: drop-shadow(0 0 15px #ffd700); }
+        .p3 { animation-delay: 1.5s; } .p3 .podium-box { height: 80px; background: linear-gradient(180deg, #cd7f32, #8b4513); border-radius: 15px 15px 0 0; } .p3 .podium-avatar { border-color: #cd7f32; box-shadow: 0 0 20px #cd7f32; }
+
+        @keyframes riseUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* =====================================
+           📱 OTIMIZAÇÃO MOBILE (SMARTPHONES)
+           ===================================== */
+        @media (max-width: 768px) {
+            #audio-controls { top: 10px; left: 10px; transform: scale(0.8); transform-origin: top left; }
+            button[onclick*="hud-janela-painel"] { top: 60px !important; left: 10px !important; transform: scale(0.8); transform-origin: top left; }
+            #timer-display { font-size: 28px; top: 10px; }
+            #killfeed { transform: scale(0.7); transform-origin: top right; top: 10px; right: 5px; }
+            .podium-container { gap: 10px; transform: scale(0.55); transform-origin: bottom center; margin-bottom: 40px; }
+            #end-screen h1 { font-size: 35px; margin-bottom: 20px; text-align: center; padding: 0 10px; }
+            #hud-janela-painel, #hud-janela-ranking { width: 95vw !important; right: 2.5vw !important; left: 2.5vw !important; }
+
+            /* ⚡ MODO SUPER LEVE: Remove sombras pesadas e brilhos que travam telemóveis na transformação */
+            .stickman-boss .head, .stickman-titan .head, .stickman-angelical .head { animation: none !important; box-shadow: none !important; border: 3px solid currentColor !important; }
+            .glow .sprite-body, .glow .head, .aura .sprite-body, .aura .head, .podium-sprite { filter: none !important; }
+            #arena { box-shadow: none !important; }
+            .bh { box-shadow: none !important; opacity: 0.5; }
+        }
+
+
+    </style>
+</head>
+<body>
+
+    <div id="audio-controls">
+        <button id="btn-music" class="btn-audio" onclick="toggleMusic()" title="Mutar/Desmutar Música">🎵</button>
+        <button id="btn-sfx" class="btn-audio" onclick="toggleSFX()" title="Mutar/Desmutar Efeitos (Narrador)">🔊</button>
+    </div>
+
+    <div id="killfeed"></div>
+    <div id="timer-display">Aguardando Host...</div>
+    <div id="announcer"></div>
+    <div id="arena"><div class="grid-floor"></div></div>
+
+    <div id="end-screen">
+        <h1>🏆 SOBREVIVENTES 🏆</h1>
+        <div class="podium-container">
+            <div class="podium-place p2" id="podium-2">
+                <img src="" class="podium-avatar">
+                <div class="podium-name">...</div>
+                <div class="podium-pts">0 pts</div>
+                <div class="podium-kills">0 Abates ⚔️</div>
+                <div class="podium-box">2</div>
+                <div class="podium-sprite-container"><img class="podium-sprite" src=""></div>
+            </div>
+
+            <div class="podium-place p1" id="podium-1">
+                <img src="" class="podium-avatar">
+                <div class="podium-name">...</div>
+                <div class="podium-pts">0 pts</div>
+                <div class="podium-kills">0 Abates ⚔️</div>
+                <div class="podium-box">1</div>
+                <div class="podium-sprite-container"><img class="podium-sprite" src=""></div>
+            </div>
+
+            <div class="podium-place p3" id="podium-3">
+                <img src="" class="podium-avatar">
+                <div class="podium-name">...</div>
+                <div class="podium-pts">0 pts</div>
+                <div class="podium-kills">0 Abates ⚔️</div>
+                <div class="podium-box">3</div>
+                <div class="podium-sprite-container"><img class="podium-sprite" src=""></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ⚙️ BOTÃO E JANELA DO PAINEL HOST -->
+    <button onclick="document.getElementById('hud-janela-painel').style.display='flex'" style="position: absolute; top: 70px; left: 15px; z-index: 100000; background: #3498db; color: white; border: 2px solid #fff; padding: 10px 15px; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 10px rgba(52, 152, 219, 0.8);">⚙️ PAINEL</button>
+
+    <div id="hud-janela-painel" style="position: absolute; top: 120px; left: 15px; width: calc(100vw - 30px); max-width: 450px; height: 80vh; background: rgba(13, 17, 23, 0.95); border: 2px solid #3498db; border-radius: 10px; z-index: 100001; display: none; flex-direction: column; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.8);">
+        <div style="background: #3498db; padding: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+            <span>⚙️ Controle Host</span>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="window.open('host.html', '_blank'); document.getElementById('hud-janela-painel').style.display='none';" style="background: #2c3e50; border: none; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">↗️ Abrir Aba</button>
+                <button onclick="document.getElementById('hud-janela-ranking').style.display='flex';" style="background: #f39c12; border: none; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">🏆 Ranking</button>
+                <button onclick="document.getElementById('hud-janela-painel').style.display='none'" style="background: #ff4757; border: none; color: white; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">X</button>
+            </div>
+        </div>
+        <iframe src="host.html" style="width: 100%; height: 100%; border: none;"></iframe>
+    </div>
+
+    <!-- 🏆 JANELA FLUTUANTE DO RANKING (TRANSPARENTE) -->
+    <div id="hud-janela-ranking" style="position: absolute; top: 120px; right: 15px; width: 320px; height: 65vh; background: rgba(0, 0, 0, 0.1); border: 1px solid rgba(212, 175, 55, 0.2); border-radius: 10px; z-index: 100001; display: none; flex-direction: column; overflow: hidden; pointer-events: none;">
+        <div style="background: rgba(0, 0, 0, 0.4); padding: 8px 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; color: rgba(212, 175, 55, 0.8); border-bottom: 1px solid rgba(212, 175, 55, 0.2); pointer-events: auto;">
+            <span style="text-shadow: 0 1px 3px #000;">🏆 Ranking</span>
+            <button onclick="document.getElementById('hud-janela-ranking').style.display='none'" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 3px 10px; cursor: pointer; border-radius: 5px; font-weight: bold;">X</button>
+        </div>
+        <!-- Fundo do iframe transparente para ver a arena -->
+        <iframe src="ranking.html" style="width: 100%; height: 100%; border: none; background: transparent; pointer-events: none;"></iframe>
+    </div>
+
+    <audio id="bgMusic" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio>
+    <audio id="bossMusic" loop src="https://incompetech.com/music/royalty-free/mp3-v2/Killers.mp3"></audio>
+    <audio id="titanMusic" loop src="https://incompetech.com/music/royalty-free/mp3-v2/Agnus%20Dei%20X.mp3"></audio>
+    <audio id="angelicalMusic" loop src="https://incompetech.com/music/royalty-free/mp3-v2/Prelude%20and%20Action.mp3"></audio>
+
+    <audio id="slashSound" src="https://actions.google.com/sounds/v1/weapons/fast_lashing_swipe.ogg"></audio>
+    <audio id="hitSound" src="https://actions.google.com/sounds/v1/impacts/crash.ogg"></audio>
+    <audio id="fleeSound" src="https://actions.google.com/sounds/v1/foley/running_on_gravel.ogg"></audio>
+    <audio id="powerupSound" src="https://actions.google.com/sounds/v1/magic/muffled_magic_chime.ogg"></audio>
+    <audio id="powerupTempSound" src="https://actions.google.com/sounds/v1/magic/magic_chime.ogg"></audio>
+    <audio id="respawnSound" src="https://actions.google.com/sounds/v1/cartoon/slip_and_slide.ogg"></audio>
+    <audio id="deathSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio>
+    <audio id="shootSound" src="https://actions.google.com/sounds/v1/weapons/laser_gun.ogg"></audio>
+    <audio id="dashSound" src="https://actions.google.com/sounds/v1/movement/swoosh_fast.ogg"></audio>
+    <audio id="bigHitSound" src="https://actions.google.com/sounds/v1/impacts/wood_hit_metal.ogg"></audio>
+    <audio id="bhSound" src="https://actions.google.com/sounds/v1/science_fiction/alien_breath.ogg"></audio>
+    <audio id="bhBoom" src="https://actions.google.com/sounds/v1/weapons/explosion_deep.ogg"></audio>
+    <audio id="thunderSound" src="https://actions.google.com/sounds/v1/weather/thunder_crack.ogg"></audio>
+    <audio id="fbSound" src="https://www.myinstants.com/media/sounds/firstblood.mp3"></audio>
+    <audio id="dkSound" src="https://www.myinstants.com/media/sounds/double_kill.mp3"></audio>
+    <audio id="tkSound" src="https://www.myinstants.com/media/sounds/triple_kill.mp3"></audio>
+    <audio id="rpSound" src="https://www.myinstants.com/media/sounds/rampage.mp3"></audio>
+    <audio id="sirenSound" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"></audio>
+    <audio id="laserBlastSound" src="https://actions.google.com/sounds/v1/science_fiction/laser_blast.ogg"></audio>
+    <audio id="zapWallSound" src="https://actions.google.com/sounds/v1/weapons/electric_spark.ogg"></audio>
+    <audio id="nukeSound" src="https://www.myinstants.com/media/sounds/tactical-nuke-incoming.mp3"></audio>
+    <audio id="bossLaughSound" src="https://www.myinstants.com/media/sounds/evil-laugh.mp3"></audio>
+
+    <script>
+        // 🛡️ TRAVA RDM STUDIO: Verifica a licença no momento que o jogo abre
+        window.rdmUser = localStorage.getItem('rdm_user');
+        window.rdmPerfil = localStorage.getItem('rdm_perfil');
+
+        if (!window.rdmUser || !window.rdmPerfil) {
+            document.body.innerHTML = "<div style='display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#000; z-index:999999; position:relative;'><h1 style='color:#ef4444; text-shadow:0 0 20px #ef4444; font-family:Arial;'>ACESSO NEGADO</h1><p style='color:#ccc; font-size:20px; font-family:Arial;'>Você precisa estar logado na RDM Studio para jogar.</p></div>";
+            window.stop();
+        }
+
+        // 🇷🇺 API RUSSA: Cache e Busca de Fotos em Alta Qualidade
+        let avatar_cache = {};
+        async function obterAvatarRusso(nick, urlRecebida) {
+            if (avatar_cache[nick] && !avatar_cache[nick].includes("dicebear")) return avatar_cache[nick];
+            if (urlRecebida && !urlRecebida.includes("dicebear")) { avatar_cache[nick] = urlRecebida; return urlRecebida; }
+            try {
+                let res = await fetch(`https://www.tikwm.com/api/user/info?unique_id=${nick}`);
+                let json = await res.json();
+                if (json && json.data && json.data.user && json.data.user.avatarLarger) {
+                    avatar_cache[nick] = json.data.user.avatarLarger; return avatar_cache[nick];
+                }
+            } catch(e) {}
+            let fallback = `https://api.dicebear.com/7.x/bottts/svg?seed=${nick}`;
+            avatar_cache[nick] = fallback; return fallback;
+        }
+
+        const arena = document.getElementById('arena'); const slashSound = document.getElementById('slashSound');
+        const timerDisplay = document.getElementById('timer-display'); const announcerEl = document.getElementById('announcer'); const endScreen = document.getElementById('end-screen'); const killfeedEl = document.getElementById('killfeed');
+
+        let stickmen = {}; let gameActive = false; let timeLeft = 0; let firstBloodDone = false; let botIndex = 1;
+        let activeAirdrops = []; let currentTop1Name = "";
+        let globalTimerInterval = null;
+        let activeTheme = 'normal';
+
+        let musicMuted = false;
+        let sfxMuted = false;
+
+        const MAX_LIFE = 1200; const LIFE_PER_HIT = 250; const BASE_SPEED = 3.0; const LOW_LIFE_SPEED_FACTOR = 0.5; const RESPAWN_TAPS_REQUIRED = 10;
+
+        let dynAngelicalScale = 4.5;
+        let dynTitanScale = 3.0;
+        let dynBossScale = 2.0;
+        let dynNormalBase = 0.7;
+        let dynNormalMax = 1.4;
+
+        function recalcScales() {
+            let maxH = window.innerHeight * 0.85; // 85% da altura da tela
+
+            // O Angelical ocupa exatamente os 85% (Ajustado para o eixo de 140px do boneco)
+            dynAngelicalScale = maxH / 140;
+            // O Titã fica com 75% do tamanho do Angelical
+            dynTitanScale = dynAngelicalScale * 0.75;
+            // O Boss fica com 55% do tamanho do Angelical
+            dynBossScale = dynAngelicalScale * 0.55;
+
+            // Bonecos normais crescem até 35% do Angelical
+            dynNormalMax = dynAngelicalScale * 0.35;
+            // O tamanho inicial base agora é 22% do Angelical (Quase o DOBRO do antigo!)
+            dynNormalBase = dynAngelicalScale * 0.22;
+
+            for(let id in stickmen) {
+                let s = stickmen[id];
+                if(s.isAngelical) s.scale = dynAngelicalScale;
+                else if(s.isTitan) s.scale = dynTitanScale;
+                else if(s.isBoss) s.scale = dynBossScale;
+                else s.scale = Math.min(dynNormalMax, dynNormalBase + (s.tapCount * 0.015) + (s.powerups.size ? (dynNormalMax-dynNormalBase)/2 : 0));
+
+                // Força a atualização visual imediata caso a janela seja redimensionada
+                if (s.el) s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) scaleX(${s.facing})`;
+            }
+        }
+
+        function resizeCanvas() {
+            document.documentElement.style.setProperty('--orb-r', (Math.min(window.innerWidth, window.innerHeight) * 0.7) + 'px');
+            recalcScales();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        let cfgGifts = { t1: 1, t2: 5, t3: 10, t4: 20, boss: 50, titan: 150, angelical: 300, multiBoss: false };
+        let hostProfile = { name: "Clone", avatar: "" };
+
+        try {
+            let savedGift = localStorage.getItem('gift_config'); if(savedGift) cfgGifts = JSON.parse(savedGift);
+            let savedHost = localStorage.getItem('host_profile'); if(savedHost) { hostProfile = JSON.parse(savedHost); if(!hostProfile.name) hostProfile.name = "Clone"; }
+        } catch(e){}
+
+        function applyGiftConfig(config) { cfgGifts = config; }
+        function applyHostProfile(config) {
+            hostProfile = config;
+            if(!hostProfile.name) hostProfile.name = "Clone";
+            Object.values(stickmen).forEach(s => {
+                if (s.isBot) {
+                    s.displayName = hostProfile.name;
+                    s.avatarUrl = hostProfile.avatar ? `https://wsrv.nl/?url=${encodeURIComponent(hostProfile.avatar)}&w=100&h=100&fit=cover` : '';
+                    let nameTag = s.el.querySelector('.name-tag'); if (nameTag) nameTag.innerText = s.displayName;
+                    if(s.avatarUrl) s.head.querySelector('.face-pic').style.backgroundImage = `url('${s.avatarUrl}')`; else s.head.querySelector('.face-pic').style.backgroundImage = 'none';
+                }
+            });
+        }
+
+        setTimeout(() => { requestAnimationFrame(update); }, 500);
+
+        function toggleMusic() {
+            musicMuted = !musicMuted;
+            document.getElementById('bgMusic').muted = musicMuted;
+            document.getElementById('bossMusic').muted = musicMuted;
+            document.getElementById('titanMusic').muted = musicMuted;
+            document.getElementById('angelicalMusic').muted = musicMuted;
+
+            let btn = document.getElementById('btn-music');
+            btn.innerText = musicMuted ? '🔇' : '🎵';
+            btn.style.borderColor = musicMuted ? '#555' : '#0ff';
+            btn.style.boxShadow = musicMuted ? 'none' : '0 0 10px #0ff';
+        }
+
+        function toggleSFX() {
+            sfxMuted = !sfxMuted;
+            let btn = document.getElementById('btn-sfx');
+            btn.innerText = sfxMuted ? '🔈' : '🔊';
+            btn.style.borderColor = sfxMuted ? '#555' : '#ff0050';
+            btn.style.boxShadow = sfxMuted ? 'none' : '0 0 10px #ff0050';
+        }
+
+        function pararMusicas() {
+            document.getElementById('bgMusic').pause(); document.getElementById('bgMusic').currentTime = 0;
+            document.getElementById('bossMusic').pause(); document.getElementById('bossMusic').currentTime = 0;
+            document.getElementById('titanMusic').pause(); document.getElementById('titanMusic').currentTime = 0;
+            document.getElementById('angelicalMusic').pause(); document.getElementById('angelicalMusic').currentTime = 0;
+            activeTheme = 'normal';
+        }
+
+        function iniciarPartidaRemota(tempoEmSegundos) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            gameActive = false; clearInterval(globalTimerInterval);
+            pararMusicas();
+
+            stickmen = {}; activeAirdrops = []; currentTop1Name = "";
+            arena.style.boxShadow = "none";
+            arena.style.background = "radial-gradient(circle at center, #4b6584 0%, #1c2836 100%)";
+            arena.innerHTML = '<div class="grid-floor"></div>'; killfeedEl.innerHTML = ''; endScreen.style.display = 'none';
+            timeLeft = tempoEmSegundos; atualizarRelogioNaTela(timeLeft); gameActive = true; firstBloodDone = false;
+
+            document.getElementById('bgMusic').volume = 0.2;
+            document.getElementById('bgMusic').play().catch(()=>{});
+            triggerAnnouncer("FIGHT!");
+
+            globalTimerInterval = setInterval(() => {
+                if(!gameActive) { clearInterval(globalTimerInterval); return; }
+                timeLeft--; atualizarRelogioNaTela(timeLeft);
+                if(timeLeft === 15) { playSFX(sirenSound); triggerAnnouncer("⚠️ ATAQUE ORBITAL! ⚠️", nukeSound); let ow = document.createElement('div'); ow.id = 'ow-marker'; ow.className = 'orbital-warning'; arena.appendChild(ow); }
+                if(timeLeft === 12) { let ow = document.getElementById('ow-marker'); if(ow) ow.remove(); playSFX(laserBlastSound); triggerScreenShake(); let ob = document.createElement('div'); ob.className = 'orbital-blast'; arena.appendChild(ob); let cx = window.innerWidth/2, cy = window.innerHeight/2; let radius = Math.min(window.innerWidth, window.innerHeight) * 0.35; for(let id in stickmen) { let s = stickmen[id]; if(!s.dead && Math.hypot(s.x-cx, s.y-cy) <= radius) { aplicarDano(s, 5000, null, true); s.kbX = (s.x-cx)*0.2; s.kbY = (s.y-cy)*0.2; } } setTimeout(()=>ob.remove(), 1000); }
+                if(timeLeft <= 0) { clearInterval(globalTimerInterval); endGame(); }
+            }, 1000);
+        }
+
+        function encerrarPartidaRemota() {
+            if(gameActive) { timeLeft = 0; atualizarRelogioNaTela(0); clearInterval(globalTimerInterval); endGame(); }
+        }
+
+        function atualizarRelogioNaTela(segundos) { let m = Math.floor(segundos/60); let s = segundos%60; timerDisplay.innerText = `${m<10?'0':''}${m}:${s<10?'0':''}${s}`; }
+
+        function playSFX(audioEl) {
+            if (!gameActive || !audioEl || sfxMuted) return;
+            const clone = audioEl.cloneNode();
+            clone.volume = 0.4;
+            clone.play().catch(() => {});
+        }
+
+        function triggerAnnouncer(text, soundEl) {
+            if(soundEl) playSFX(soundEl);
+            announcerEl.innerText = text;
+            announcerEl.classList.remove('announce-anim');
+            void announcerEl.offsetWidth;
+            announcerEl.classList.add('announce-anim');
+            triggerScreenShake();
+        }
+
+        function narrarInteracao(text) {
+            // Narrador genérico de voz robótica completamente desativado. Mantendo apenas SFX.
+            console.log("Narrador:", text);
+        }
+
+        function addGiftNotification(nome, poder) { let ke = document.createElement('div'); ke.className = 'kill-entry gift-entry'; ke.innerHTML = `🎁 <span style="color:#ffd700">${nome}</span> ativou <b style="color:#0ff">${poder}</b>!`; killfeedEl.appendChild(ke); setTimeout(() => { if(ke.parentNode) ke.remove(); }, 5000); }
+        function randomSpawn() { return { x: (Math.random() * 0.6 + 0.2) * window.innerWidth, y: (Math.random() * 0.6 + 0.2) * window.innerHeight }; }
+        function spawnFloatingText(x, y, text, color) { const el = document.createElement('div'); el.className = 'floating-text'; el.innerText = text; el.style.color = color; el.style.left = x + 'px'; el.style.top = y + 'px'; arena.appendChild(el); setTimeout(() => el.remove(), 800); }
+        function triggerScreenShake() { arena.classList.remove('shake'); void arena.offsetWidth; arena.classList.add('shake'); setTimeout(() => arena.classList.remove('shake'), 300); }
+        function spawnShockwave(x, y) { const wave = document.createElement('div'); wave.className = 'shockwave'; wave.style.left = x + 'px'; wave.style.top = y + 'px'; arena.appendChild(wave); setTimeout(() => wave.remove(), 400); }
+        function spawnSpark(x, y) { if(window.innerWidth <= 768 && Math.random() > 0.4) return; const spark = document.createElement('div'); spark.className = 'spark'; spark.style.left = (x - 7) + 'px'; spark.style.top = (y - 7) + 'px'; arena.appendChild(spark); setTimeout(() => spark.remove(), 250); }
+        function spawnGhost(s) { if(window.innerWidth <= 768) return; const ghost = document.createElement('div'); ghost.className = 'stickman ghost type-'+s.type; ghost.style.color = s.color; ghost.innerHTML = s.el.innerHTML; let tag = ghost.querySelector('.name-tag'); if(tag) tag.remove(); let hp = ghost.querySelector('.health-bar-container'); if(hp) hp.remove(); ghost.style.transform = s.el.style.transform; arena.appendChild(ghost); setTimeout(() => { ghost.style.opacity = '0'; ghost.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) scaleX(${s.facing})`; }, 50); setTimeout(() => ghost.remove(), 450); }
+        function spawnGore(x, y, color, scale) { let max = window.innerWidth <= 768 ? 2 : 6; for(let i=0; i<max; i++) { let p = document.createElement('div'); p.style.position = 'absolute'; p.style.background = color; p.style.boxShadow = `0 0 10px ${color}`; p.style.width = i===0 ? (20*scale)+'px' : (4*scale)+'px'; p.style.height = i===0 ? (20*scale)+'px' : (25*scale)+'px'; if(i===0) p.style.borderRadius = '50%'; p.style.left = x + 'px'; p.style.top = y + 'px'; arena.appendChild(p); let vx = (Math.random()-0.5)*20, vy = (Math.random()-0.5)*20 - 5, rot = Math.random()*360, rotV = (Math.random()-0.5)*30; let life = 1; let anim = setInterval(() => { x += vx; y += vy; vy += 0.8; rot += rotV; life -= 0.02; p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg)`; p.style.opacity = life; if(life <= 0) { p.remove(); clearInterval(anim); } }, 30); } }
+
+        function createStickman(user) {
+            if (stickmen[user.uniqueId]) return;
+            const div = document.createElement('div'); div.className = 'stickman'; const color = `hsl(${Math.random() * 360}, 100%, 65%)`; div.style.color = color; const spawn = randomSpawn();
+            let pic = user.profilePictureUrl || user.profilePicUrl || ''; let formattedPic = pic ? `https://wsrv.nl/?url=${encodeURIComponent(pic)}&w=100&h=100&fit=cover` : '';
+            let dispName = user.displayName || user.uniqueId;
+
+            let type = Object.keys(stickmen).length % 2 === 0 ? 'p1' : 'p2';
+            div.classList.add(`type-${type}`);
+            let hue = Math.floor(Math.random() * 360);
+            div.style.filter = `hue-rotate(${hue}deg)`;
+
+            div.innerHTML = `<div class="name-tag" style="filter: hue-rotate(-${hue}deg);">${dispName}</div>` +
+                             `<div class="head" style="filter: hue-rotate(-${hue}deg);"><div class="face-pic" style="background-image: url('${formattedPic}')"></div></div>` +
+                             `<div class="health-bar-container" style="filter: hue-rotate(-${hue}deg);"><div class="health-bar"></div></div>` +
+                             `<div class="sprite-body"></div>`;
+            arena.appendChild(div);
+
+            stickmen[user.uniqueId] = { el: div, head: div.querySelector('.head'), id: user.uniqueId, displayName: dispName, avatarUrl: formattedPic, hitsTomados: 0, score: 0, kills: 0, currentStreak: 0, isTop1: false, isBoss: false, isTitan: false, isAngelical: false, isBounty: false, hasGifted: false, totalDiamonds: 0, top1Since: null, drone: null, droneLastShot: 0, scale: dynNormalBase, x: spawn.x, y: spawn.y, kbX: 0, kbY: 0, lastAtk: 0, color: color, type: type, aggressiveness: 1200, healthBarEl: div.querySelector('.health-bar'), life: MAX_LIFE, maxLifeReal: MAX_LIFE, dead: false, respawnTaps: 0, isBot: user.isBot || false, tapCount: 0, powerups: {speed:false, attack:false, size:false}, visualPowerups: {glow:false,aura:false,crown:false,stamp:null}, attackStyle: 'normal', facing: 1, isSawMode: false, lastSawTime: 0, lastSawHit: 0 };
+
+            atualizarBarraDeVida(stickmen[user.uniqueId]);
+            div.style.transform = `translate(${spawn.x}px, ${spawn.y}px) scale(${dynNormalBase}) scaleX(1)`;
+            updateArmor(stickmen[user.uniqueId]);
+        }
+
+        function atualizarBarraDeVida(s) { const perc = Math.max(0, Math.min(100, s.life / s.maxLifeReal * 100)); s.healthBarEl.style.width = perc + '%'; s.healthBarEl.style.background = perc > 60 ? '#0f0' : perc > 30 ? '#ff0' : '#f00'; }
+
+        function aplicarDano(target, dano, atacante, isCrit = false) {
+            if (target.dead || !gameActive) return;
+            if(dano < 0) { target.life = Math.min(target.maxLifeReal, target.life - dano); atualizarBarraDeVida(target); spawnFloatingText(target.x, target.y - (100 * target.scale), "+HEAL", "#0f0"); return; }
+            if (Math.random() < 0.15 && atacante !== null) { spawnFloatingText(target.x, target.y - (110 * target.scale), "BLOCK!", "#aaa"); playSFX(slashSound); return; }
+
+            target.life -= dano; if (target.life < 0) target.life = 0; atualizarBarraDeVida(target);
+            playSFX(hitSound); spawnSpark(target.x, target.y - (50 * target.scale));
+
+            let dmgColor = isCrit ? "#ff0050" : "#fff"; let dmgTxt = isCrit ? `CRIT -${Math.floor(dano)}` : `-${Math.floor(dano)}`; spawnFloatingText(target.x + (Math.random()*40-20), target.y - (100 * target.scale), dmgTxt, dmgColor);
+
+            if (target.life <= 0) {
+                matarStickman(target);
+                if (atacante && !atacante.dead) {
+                    let ke = document.createElement('div'); ke.className = 'kill-entry'; ke.innerHTML = `<span style="color:${atacante.color}">${atacante.displayName}</span> ⚔️ <span style="color:#aaa">${target.displayName}</span>`; killfeedEl.appendChild(ke); setTimeout(() => { if(ke.parentNode) ke.remove(); }, 4000);
+                    if (target.isBounty) { atacante.score += 100; spawnFloatingText(atacante.x, atacante.y - (130 * atacante.scale), "+100 RECOMPENSA!", "#ffd700"); triggerAnnouncer("RECOMPENSA COLETADA!", powerupSound); }
+                    atacante.kills++; atacante.currentStreak++;
+                    if (!firstBloodDone) { firstBloodDone = true; triggerAnnouncer("FIRST BLOOD!", fbSound); }
+                    else if (atacante.currentStreak === 2) triggerAnnouncer("DOUBLE KILL!", dkSound);
+                    else if (atacante.currentStreak === 3) triggerAnnouncer("TRIPLE KILL!", tkSound);
+                    else if (atacante.currentStreak >= 4) { triggerAnnouncer("RAMPAGE!!!", rpSound); }
+
+                    if (atacante.kills === 5 && !atacante.isBoss && !atacante.isTitan && !atacante.isAngelical) {
+                        atacante.isBounty = true; let b = document.createElement('div'); b.className = 'bounty-target'; b.innerText = '🎯';
+                        atacante.head.appendChild(b); triggerAnnouncer("ALVO MARCADO!", thunderSound);
+                    }
+                }
+            }
+        }
+
+        function makeBoss(s) {
+            if(s.isTitan || s.isAngelical) return;
+            s.maxLifeReal = 50000; if(s.life < 50000) s.life = 50000;
+            s.isBoss = true; s.isTitan = false; s.isAngelical = false;
+            s.scale = dynBossScale; s.attackStyle = 'blackhole'; s.aggressiveness = 1000;
+            if (s.el) { s.el.className = `stickman type-${s.type} stickman-boss`; }
+            atualizarBarraDeVida(s); triggerAnnouncer("⚠️ CHEFÃO NA ARENA ⚠️", null); playSFX(bossLaughSound);
+            updateArenaGlow();
+        }
+
+        function makeTitan(s) {
+            if(s.isAngelical) return;
+            s.maxLifeReal = 150000; if(s.life < 150000) s.life = 150000;
+            s.isBoss = false; s.isTitan = true; s.isAngelical = false;
+            s.scale = dynTitanScale; s.attackStyle = 'blackhole'; s.aggressiveness = 800;
+            if (s.el) { s.el.className = `stickman type-${s.type} stickman-titan`; }
+            atualizarBarraDeVida(s); triggerAnnouncer("🌌 TITÃ SUPREMO 🌌", thunderSound); playSFX(bossLaughSound);
+            updateArenaGlow();
+        }
+
+        function makeAngelical(s) {
+            s.maxLifeReal = 500000; if(s.life < 500000) s.life = 500000;
+            s.isBoss = false; s.isTitan = false; s.isAngelical = true;
+            s.scale = dynAngelicalScale; s.attackStyle = 'blackhole'; s.aggressiveness = 500;
+            if (s.el) { s.el.className = `stickman type-${s.type} stickman-angelical`; }
+            atualizarBarraDeVida(s); triggerAnnouncer("✨ ASCENSÃO DIVINA ✨", thunderSound); playSFX(bossLaughSound);
+            updateArenaGlow();
+        }
+
+        function removeBoss(s) {
+            s.isBoss = false; s.isTitan = false; s.isAngelical = false;
+            s.scale = Math.min(dynNormalMax, dynNormalBase + (s.tapCount * 0.015) + 0.5); s.maxLifeReal = MAX_LIFE + 2000; s.life = Math.min(s.life, s.maxLifeReal); s.attackStyle = 'slam'; s.isSawMode = false;
+            if (s.el) { s.el.className = `stickman type-${s.type}`; }
+            updateArenaGlow();
+        }
+
+        function updateArenaGlow() {
+            let temAngel = Object.values(stickmen).some(x => x.isAngelical && !x.dead);
+            let temTitan = Object.values(stickmen).some(x => x.isTitan && !x.dead);
+            let temBoss = Object.values(stickmen).some(x => x.isBoss && !x.dead);
+
+            let novoTema = 'normal';
+            if (temAngel) {
+                arena.style.boxShadow = "inset 0 0 300px #fff, inset 0 0 150px #ffd700";
+                arena.style.background = "radial-gradient(circle at center, #d1d8e0 0%, #7f8fa6 100%)";
+                novoTema = 'angelical';
+            }
+            else if (temTitan) {
+                arena.style.boxShadow = "inset 0 0 200px #0ff";
+                arena.style.background = "radial-gradient(circle at center, #4b6584 0%, #1c2836 100%)";
+                novoTema = 'titan';
+            }
+            else if (temBoss) {
+                arena.style.boxShadow = "inset 0 0 150px red";
+                arena.style.background = "radial-gradient(circle at center, #4b6584 0%, #1c2836 100%)";
+                novoTema = 'boss';
+            }
+            else {
+                arena.style.boxShadow = "none";
+                arena.style.background = "radial-gradient(circle at center, #4b6584 0%, #1c2836 100%)";
+            }
+
+            if(novoTema !== activeTheme && gameActive && !musicMuted) {
+                document.getElementById('bgMusic').pause();
+                document.getElementById('bossMusic').pause();
+                document.getElementById('titanMusic').pause();
+                document.getElementById('angelicalMusic').pause();
+
+                if(novoTema === 'angelical') { document.getElementById('angelicalMusic').volume = 0.5; document.getElementById('angelicalMusic').play().catch(()=>{}); }
+                else if(novoTema === 'titan') { document.getElementById('titanMusic').volume = 0.4; document.getElementById('titanMusic').play().catch(()=>{}); }
+                else if(novoTema === 'boss') { document.getElementById('bossMusic').volume = 0.3; document.getElementById('bossMusic').play().catch(()=>{}); }
+                else { document.getElementById('bgMusic').volume = 0.2; document.getElementById('bgMusic').play().catch(()=>{}); }
+
+                activeTheme = novoTema;
+            }
+        }
+
+        function matarStickman(s) {
+            if (s.dead) return; playSFX(deathSound); s.dead = true; s.life = 0; s.hitsTomados = 0; s.respawnTaps = 0; s.tapCount = 0; s.currentStreak = 0; s.attackStyle = 'normal'; s.isSawMode = false; s.el.classList.remove('saw-mode'); spawnGore(s.x, s.y, s.color, s.scale); resetVisualPowerups(s); atualizarBarraDeVida(s); s.el.style.opacity = 0; s.el.style.pointerEvents = 'none'; s.scale = dynNormalBase; s.facing = 1; if(s.drone){ s.drone.remove(); s.drone=null; } s.top1Since = null; s.kbX=0; s.kbY=0; s.isBounty = false; let bountyTag = s.head.querySelector('.bounty-target'); if(bountyTag) bountyTag.remove();
+            if(s.isBoss || s.isTitan || s.isAngelical) { removeBoss(s); }
+        }
+
+        function tentarRespawn(s) {
+            if (!s.dead || !gameActive || s.respawnTaps < RESPAWN_TAPS_REQUIRED) return;
+            s.dead = false; s.life = s.maxLifeReal; s.hitsTomados = 0; s.respawnTaps = 0; s.tapCount = 0; s.currentStreak = 0; s.attackStyle = 'normal';
+            resetVisualPowerups(s); atualizarNivelPoder(s); atualizarBarraDeVida(s);
+            const spawn = randomSpawn(); s.x = spawn.x; s.y = spawn.y; s.kbX=0; s.kbY=0; s.el.style.opacity = 1; s.el.style.pointerEvents = 'auto'; s.scale = dynNormalBase; s.facing = 1; s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${dynNormalBase}) scaleX(1)`; playSFX(respawnSound);
+        }
+
+        function knockback(target, fromX, fromY, magnitude) { let kA = Math.atan2(target.y - fromY, target.x - fromX); target.kbX += Math.cos(kA) * magnitude; target.kbY += Math.sin(kA) * magnitude; }
+        function spawnProjectile(from, to, color, onHit) { playSFX(shootSound); const proj = document.createElement('div'); proj.className = 'projectile'; proj.style.left = from.x + 'px'; proj.style.top = from.y + 'px'; arena.appendChild(proj); let dx = to.x - from.x, dy = to.y - from.y, dist = Math.hypot(dx, dy), steps = Math.max(10, Math.floor(dist/18)), step = 0; let vx = dx/steps, vy = dy/steps; let interval = setInterval(() => { from.x += vx; from.y += vy; proj.style.left = from.x + 'px'; proj.style.top = from.y + 'px'; step++; if (step >= steps) { clearInterval(interval); proj.remove(); if (onHit) onHit(); } }, 18); }
+
+        function atualizarNivelPoder(s) {
+            if(s.dead) return; let d = s.totalDiamonds;
+            if (d >= cfgGifts.t3) { s.powerups.attack = true; s.powerups.speed = true; applyVisualPowerup(s, 'crown'); s.attackStyle = Math.random() > 0.5 ? 'grab' : 'slam'; }
+            else if (d >= cfgGifts.t2) { s.powerups.speed = true; applyVisualPowerup(s, 'aura'); s.attackStyle = Math.random() > 0.5 ? 'projectile' : 'teleport'; }
+            else if (d >= cfgGifts.t1) { applyVisualPowerup(s, 'glow'); s.attackStyle = Math.random() > 0.5 ? 'dash' : 'spin'; }
+            if(!s.isBoss && !s.isTitan && !s.isAngelical) s.scale = Math.min(dynNormalMax, dynNormalBase + (s.tapCount * 0.015) + (s.powerups.size ? (dynNormalMax-dynNormalBase)/2 : 0));
+        }
+
+        function updateArmor(s) { if (s.visualPowerups.glow) { s.el.classList.add('glow'); } if (s.visualPowerups.aura) { s.el.classList.add('aura'); } }
+        function applyVisualPowerup(s, type) { if (type === 'glow' && !s.visualPowerups.glow) { s.el.classList.add('glow'); s.visualPowerups.glow = true; spawnFloatingText(s.x, s.y-(100*s.scale), 'FORÇA LENDÁRIA!', '#0f0'); } else if (type === 'aura' && !s.visualPowerups.aura) { s.el.classList.add('aura'); s.visualPowerups.aura = true; spawnFloatingText(s.x, s.y-(100*s.scale), 'VELOCIDADE MÁXIMA!', '#0ff'); } else if (type === 'crown' && !s.visualPowerups.crown) { let crown = document.createElement('div'); crown.className = 'crown'; crown.textContent = '👑'; s.head.appendChild(crown); s.visualPowerups.crown = true; spawnFloatingText(s.x, s.y-(100*s.scale), 'FORÇA BRUTAL!', '#ffd700'); } updateArmor(s); }
+        function resetVisualPowerups(s) { s.el.classList.remove('glow','aura'); let crown = s.head.querySelector('.crown'); if (crown) crown.remove(); s.visualPowerups = {glow:false,aura:false,crown:false,stamp:null}; updateArmor(s); }
+        function executarGrabThrow(atacanteId, alvoId) { const atacante = stickmen[atacanteId]; const alvo = stickmen[alvoId]; if (!atacante || !alvo || atacante.dead || alvo.dead) return; const startX = alvo.x, startY = alvo.y, angle = Math.atan2(alvo.y - atacante.y, alvo.x - atacante.x), distancia = 250, endX = alvo.x + Math.cos(angle) * distancia, endY = alvo.y + Math.sin(angle) * distancia, passos = 18, duracao = 260, intervalo = duracao / passos, deltaX = (endX - startX) / passos, deltaY = (endY - startY) / passos; let passoAtual = 0; const throwTimer = setInterval(() => { if (alvo.dead) { clearInterval(throwTimer); return; } alvo.x += deltaX; alvo.y += deltaY; passoAtual++; if (passoAtual >= passos) { clearInterval(throwTimer); alvo.x = endX; alvo.y = endY; alvo.kbX = Math.cos(angle)*60; alvo.kbY = Math.sin(angle)*60; } }, intervalo); const dmgMult = atacante.isAngelical ? 18 : (atacante.isTitan ? 12 : (atacante.isBoss ? 6 : (atacante.powerups.attack ? 2 : 1))); aplicarDano(alvo, LIFE_PER_HIT * 1.5 * dmgMult * (atacante.isTop1?1.2:1), atacante, true); triggerScreenShake(); }
+
+        function spawnAirdrop() { let ad = document.createElement('div'); ad.className = 'airdrop'; ad.innerText = '🎁'; ad.x = 100 + Math.random() * (window.innerWidth - 200); ad.y = 100 + Math.random() * (window.innerHeight - 200); ad.style.left = ad.x - 17 + 'px'; ad.style.top = ad.y - 17 + 'px'; arena.appendChild(ad); activeAirdrops.push({el: ad, x: ad.x, y: ad.y}); playSFX(powerupSound); }
+        setInterval(() => { if(!gameActive || timeLeft <= 20) return; let r = Math.random(); if(r > 0.75) triggerThunderstorm(); else if(r > 0.5) triggerHealingZone(); else if(r > 0.25) spawnAirdrop(); else triggerMeteorShower(); }, 15000);
+        function triggerThunderstorm() { playSFX(thunderSound); let flash = document.createElement('div'); flash.className = 'flash'; arena.appendChild(flash); setTimeout(()=>flash.remove(), 300); let strikes = 5 + Math.floor(Math.random()*5); for(let i=0; i<strikes; i++) { setTimeout(() => { let lx = Math.random() * window.innerWidth; let ly = Math.random() * window.innerHeight; let zap = document.createElement('div'); zap.className = 'lightning'; zap.style.left = lx+'px'; zap.style.bottom = `calc(100vh - ${ly}px)`; arena.appendChild(zap); playSFX(shootSound); setTimeout(()=>zap.remove(),400); for(let id in stickmen) { let s = stickmen[id]; if(!s.dead && Math.hypot(s.x-lx, s.y-ly) < 150) { aplicarDano(s, 400, null, true); spawnFloatingText(s.x, s.y-(100*s.scale), "ZAP!", "#0ff"); } } }, i * 600); } }
+        function triggerHealingZone() { let hx = 150 + Math.random()*(window.innerWidth-300); let hy = 150 + Math.random()*(window.innerHeight-300); let zone = document.createElement('div'); zone.className = 'heal-zone'; zone.style.left = hx+'px'; zone.style.top = hy+'px'; arena.appendChild(zone); playSFX(powerupSound); let ticks = 0; let healTimer = setInterval(() => { ticks++; for(let id in stickmen) { let s = stickmen[id]; if(!s.dead && Math.hypot(s.x-hx, s.y-hy) < 175) { aplicarDano(s, -150, null, false); } } if(ticks > 12) { clearInterval(healTimer); zone.remove(); } }, 1000); }
+        function triggerMeteorShower() { triggerAnnouncer("METEOR STRIKE!"); for(let i=0; i<10; i++) { setTimeout(() => { let m = document.createElement('div'); m.className = 'meteor'; let ex = Math.random() * window.innerWidth; let ey = Math.random() * window.innerHeight; m.style.left = ex+'px'; m.style.top = ey+'px'; arena.appendChild(m); setTimeout(() => { m.remove(); playSFX(bhBoom); spawnShockwave(ex, ey); for(let id in stickmen) { let s = stickmen[id]; if(!s.dead && Math.hypot(s.x-ex, s.y-ey) < 200) { aplicarDano(s, 600, null, true); knockback(s, ex, ey, 80); } } }, 800); }, i * 400); } }
+
+        setInterval(() => {
+            if (!gameActive) return;
+            let realUsers = Object.values(stickmen).filter(s => !s.isBot).length;
+            let aliveBots = Object.values(stickmen).filter(s => s.isBot && !s.dead).length;
+            if (realUsers < 3 && aliveBots < 4) {
+                let bId = 'Clone_' + botIndex++;
+                createStickman({ uniqueId: bId, displayName: hostProfile.name, profilePictureUrl: hostProfile.avatar, isBot: true });
+            }
+            Object.values(stickmen).forEach(s => {
+                if (s.isBot && !s.dead) {
+                    s.tapCount += 1; s.score += 15;
+                    if(s.scale < dynNormalMax && !s.isBoss && !s.isTitan && !s.isAngelical) { s.aggressiveness = Math.max(220, s.aggressiveness - 15); s.scale = Math.min(dynNormalMax, dynNormalBase + (s.tapCount * 0.015)); }
+                }
+            });
+        }, 2500);
+
+        function endGame() {
+            gameActive = false; pararMusicas();
+
+            // Oculta completamente todos os lutadores para não vazar tela
+            Object.values(stickmen).forEach(s => { if(s && s.el) { s.el.style.display = 'none'; } });
+
+            let players = Object.values(stickmen);
+            if(players.length > 0) {
+                let ranked = players.map(s => { return { ...s, totalPoints: s.score + (s.kills * 200) } }).sort((a, b) => b.totalPoints - a.totalPoints);
+                const fillPodium = (pos, user) => {
+                    let pDiv = document.getElementById(`podium-${pos}`);
+                    if (user && user.totalPoints > 0) {
+                        let spriteSrc = user.type === 'p1' ? 'assets_baixados/stickman_base_p1.webp' : 'assets_baixados/stickman_base_p2.webp';
+                        if (user.isAngelical) spriteSrc = 'assets_baixados/boss_angelical_base.webp';
+                        else if (user.isTitan || user.isBoss) spriteSrc = user.type === 'p1' ? 'assets_baixados/stickman_armor_p1_base.webp' : 'assets_baixados/stickman_armor_p2_base.webp';
+
+                        pDiv.querySelector('.podium-sprite').src = spriteSrc;
+                        pDiv.querySelector('.podium-avatar').src = user.avatarUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+                        pDiv.querySelector('.podium-name').innerText = user.displayName;
+                        pDiv.querySelector('.podium-pts').innerText = Math.floor(user.totalPoints) + ' pts';
+                        pDiv.querySelector('.podium-kills').innerText = user.kills + ' Abates ⚔️';
+                    } else {
+                        pDiv.querySelector('.podium-sprite').src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+                        pDiv.querySelector('.podium-avatar').src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+                        pDiv.querySelector('.podium-name').innerText = '...';
+                        pDiv.querySelector('.podium-pts').innerText = '0 pts';
+                        pDiv.querySelector('.podium-kills').innerText = '0 Abates ⚔️';
+                    }
+                };
+                fillPodium(1, ranked[0]); fillPodium(2, ranked[1]); fillPodium(3, ranked[2]);
+            } else {
+                [1,2,3].forEach(i => { fillPodium(i, null); });
+            }
+            document.getElementById('end-screen').style.display = 'flex';
+        }
+
+        function update() {
+            if(!gameActive) { requestAnimationFrame(update); return; }
+            let cx = window.innerWidth / 2; let cy = window.innerHeight / 2;
+            let playersArray = Object.values(stickmen).filter(p => !p.dead);
+
+            for (let id in stickmen) {
+                let s = stickmen[id]; if (s.dead) continue;
+
+                activeAirdrops.forEach((ad, idx) => {
+                    if(Math.hypot(s.x - ad.x, s.y - ad.y) < 45 * s.scale) {
+                        ad.el.remove(); activeAirdrops.splice(idx, 1); s.life = s.maxLifeReal; s.score += 300; atualizarBarraDeVida(s); spawnFloatingText(s.x, s.y-(100*s.scale), "+SUPRIMENTO!", "#0f0"); playSFX(powerupTempSound);
+                    }
+                });
+
+                if (s.isTop1 && !s.isBoss && !s.isTitan && !s.isAngelical) {
+                    if (!s.top1Since) s.top1Since = Date.now();
+                    if (s.hasGifted || (Date.now() - s.top1Since <= 2000)) {
+                        if (!s.drone) { s.drone = document.createElement('div'); s.drone.className = 'drone'; s.head.appendChild(s.drone); }
+                        if (Date.now() - s.droneLastShot > 2500) { let nearest = null; let nd = 9999; for(let oid in stickmen) { if(oid===id || stickmen[oid].dead) continue; let d = Math.hypot(stickmen[oid].x - s.x, stickmen[oid].y - s.y); if(d < nd) { nd = d; nearest = stickmen[oid]; } } if(nearest && nd < 300) { s.droneLastShot = Date.now(); spawnProjectile({x:s.x, y:s.y-50}, {x:nearest.x, y:nearest.y-(50*nearest.scale)}, '#0ff', () => { aplicarDano(nearest, LIFE_PER_HIT*0.15, s); }); } }
+                    } else if (s.drone) { s.drone.remove(); s.drone = null; }
+                } else { if (s.drone) { s.drone.remove(); s.drone = null; } s.top1Since = null; }
+
+                let sepX = 0, sepY = 0;
+                for (let otherId in stickmen) { if (id === otherId || stickmen[otherId].dead) continue; let other = stickmen[otherId]; let dx = s.x - other.x; let dy = s.y - other.y; let dist = Math.hypot(dx, dy); let minDist = (35 * s.scale) + (35 * other.scale); if (dist < minDist && dist > 0.1) { let force = (minDist - dist) / minDist; sepX += (dx / dist) * force * 10; sepY += (dy / dist) * force * 10; } }
+
+                let enemies = Object.keys(stickmen).filter(eid => eid !== id && !stickmen[eid].dead); let vx = 0, vy = 0; let isWalking = false;
+
+                if (enemies.length > 0) {
+                    let targetId;
+
+                    if (s.isBoss || s.isTitan || s.isAngelical) {
+                        targetId = enemies.reduce((prev, curr) => Math.hypot(stickmen[curr].x - s.x, stickmen[curr].y - s.y) < Math.hypot(stickmen[prev].x - s.x, stickmen[prev].y - s.y) ? curr : prev);
+
+                        if (!s.isSawMode && (!s.lastSawTime || Date.now() - s.lastSawTime > 15000)) {
+                            if (Math.random() < 0.05) {
+                                s.isSawMode = true; s.lastSawTime = Date.now(); s.el.classList.add('saw-mode'); triggerAnnouncer("⚠️ MODO SERRA! ⚠️", sirenSound);
+                                setTimeout(() => { s.isSawMode = false; if(s.el) s.el.classList.remove('saw-mode'); }, 2500);
+                            }
+                        }
+                    } else {
+                        let bestTarget = enemies[0];
+                        let bestScore = Infinity;
+                        enemies.forEach(eid => {
+                            let e = stickmen[eid];
+                            let dist = Math.hypot(e.x - s.x, e.y - s.y);
+                            let lifeDiff = e.life - s.life;
+
+                            let score = dist;
+                            if (e.isBoss || e.isTitan || e.isAngelical) { score += 100000; }
+                            else if (lifeDiff > 0) { score += lifeDiff * 3; }
+                            else { score += lifeDiff; }
+
+                            if (score < bestScore) { bestScore = score; bestTarget = eid; }
+                        });
+                        targetId = bestTarget;
+                    }
+
+                    let target = stickmen[targetId];
+                    let isRage = s.life > 0 && s.life < s.maxLifeReal * 0.25;
+
+                    if (isRage && !s.isBoss && !s.isTitan && !s.isAngelical) { s.el.classList.add('rage'); s.aggressiveness = Math.min(100, s.aggressiveness); } else { s.el.classList.remove('rage'); }
+
+                    s.aggressiveness = Math.max(isRage ? 100 : 420, 1200 - (s.score / 30) - (s.tapCount * 10) - (s.powerups.speed ? 300 : 0)); const lifeFactor = (s.life <= 0) ? LOW_LIFE_SPEED_FACTOR : 1;
+                    let moveSpeed = (BASE_SPEED * lifeFactor + (s.totalDiamonds > 0 ? 1.2 : 0) + (s.isTop1 ? 0.5 : 0) + (s.score / 8000) + (s.tapCount * 0.03) + (s.powerups.speed ? 1.5 : 0)) * (isRage ? 1.5 : 1);
+
+                    let dist = Math.hypot(target.x - s.x, target.y - s.y); s.facing = target.x >= s.x ? 1 : -1;
+                    let angle = Math.atan2(target.y - s.y, target.x - s.x);
+                    let attackType = s.attackStyle || 'normal'; let attackDist = (50 * s.scale) + (35 * target.scale); if (attackType === 'strong' || attackType === 'grab' || attackType === 'blackhole' || attackType === 'slam') attackDist = (60 * s.scale) + (35 * target.scale); else if (attackType === 'projectile' || attackType === 'teleport') attackDist = (100 * s.scale) + (40 * target.scale); else if (attackType === 'dash') attackDist = (90 * s.scale) + (35 * target.scale);
+
+                    if (s.isAngelical || s.isTitan || s.isBoss) {
+                        if (s.isSawMode) {
+                            let angleToTarget = Math.atan2(target.y - s.y, target.x - s.x); vx = Math.cos(angleToTarget) * 15; vy = Math.sin(angleToTarget) * 15; isWalking = true;
+                            if (!s.lastSawHit) s.lastSawHit = 0; if (Date.now() - s.lastSawHit > 100) { s.lastSawHit = Date.now(); playSFX(slashSound); enemies.forEach(eid => { let e = stickmen[eid]; if (Math.hypot(e.x - s.x, e.y - s.y) < 150 * s.scale) { aplicarDano(e, LIFE_PER_HIT * 10, s, true); knockback(e, s.x, s.y, 120); spawnSpark(e.x, e.y); } }); }
+                        } else {
+                            let distToCenter = Math.hypot(cx - s.x, cy - s.y); let angleToCenter = Math.atan2(cy - s.y, cx - s.x);
+                            if (distToCenter > 150) { vx = Math.cos(angleToCenter) * 2; vy = Math.sin(angleToCenter) * 2; isWalking = true; } else { vx = Math.cos(Date.now() / 800 + s.x) * 0.8; vy = Math.sin(Date.now() / 800 + s.y) * 0.8; isWalking = true; }
+
+                            if (dist <= attackDist) {
+                                vx = 0; vy = 0; isWalking = false;
+
+                                if (Date.now() - s.lastAtk > s.aggressiveness) {
+                                    s.lastAtk = Date.now();
+                                    s.el.classList.add('atk-anim'); playSFX(slashSound);
+                                    let dMult = s.isAngelical ? 25.0 : (s.isTitan ? 18.0 : 10.0);
+                                    aplicarDano(target, LIFE_PER_HIT * dMult, s, true); knockback(target, s.x, s.y, 80); triggerScreenShake();
+                                    setTimeout(() => { s.el.classList.remove('atk-anim'); }, 320);
+                                }
+
+                                if (!s.lastBh) s.lastBh = 0;
+                                if (Date.now() - s.lastBh > (s.isAngelical ? 3500 : 4500)) {
+                                    s.lastBh = Date.now();
+                                    playSFX(sirenSound);
+                                    if(s.isAngelical) triggerAnnouncer("LUZ DIVINA!", thunderSound);
+                                    else if(s.isTitan) triggerAnnouncer("FÚRIA TITÂNICA!", thunderSound);
+                                    else triggerAnnouncer("BURACO NEGRO!", bhSound);
+
+                                    let strikes = s.isAngelical ? 20 : 12;
+                                    let beamColor = s.isAngelical ? '#ffea00' : '#0ff';
+                                    let beamGlow = s.isAngelical ? '0 0 50px #fff, 0 0 100px #ffd700' : '0 0 50px #fff';
+
+                                    for(let i=0; i<strikes; i++) {
+                                        setTimeout(() => {
+                                            if(s.dead) return;
+                                            let ex = s.x + (Math.random()*700 - 350);
+                                            let ey = s.y + (Math.random()*700 - 350);
+                                            let beam = document.createElement('div');
+                                            beam.style.position = 'absolute'; beam.style.left = ex+'px'; beam.style.top = '0'; beam.style.width = '45px'; beam.style.height = '100vh'; beam.style.background = beamColor; beam.style.boxShadow = beamGlow; beam.style.transform = 'translateX(-50%)'; beam.style.zIndex = '90'; beam.style.pointerEvents = 'none'; beam.style.animation = 'zap 0.5s ease-out forwards';
+                                            arena.appendChild(beam);
+                                            playSFX(laserBlastSound); spawnShockwave(ex, ey);
+                                            enemies.forEach(eid => { let e = stickmen[eid]; if(!e.dead && Math.hypot(e.x-ex, e.y-ey) < 180) { aplicarDano(e, LIFE_PER_HIT*(s.isAngelical?20.0:15.0), s, true); knockback(e, ex, ey, 200); spawnSpark(e.x, e.y); } });
+                                        }, i * 200);
+                                    }
+                                }
+                            }
+
+                            // PASSIVA
+                            if (s.isTitan || s.isAngelical) {
+                                if (!s.lastShock) s.lastShock = Date.now() + 1000;
+                                if (Date.now() - s.lastShock > 2500) {
+                                    s.lastShock = Date.now();
+                                    let shocked = false;
+                                    enemies.forEach(eid => {
+                                        let e = stickmen[eid];
+                                        if(!e.dead && Math.hypot(e.x-s.x, e.y-s.y) < (s.isAngelical?350:280)) {
+                                            shocked = true;
+                                            let lx = s.x, ly = s.y - 50;
+                                            let e_ly = e.y - 40;
+                                            let distZap = Math.hypot(e.x - lx, e_ly - ly);
+                                            let angleZap = Math.atan2(e_ly - ly, e.x - lx);
+                                            let zap = document.createElement('div');
+                                            zap.style.position = 'absolute'; zap.style.left = lx+'px'; zap.style.top = ly+'px';
+                                            zap.style.width = distZap + 'px'; zap.style.height = '6px'; zap.style.background = '#fff';
+                                            zap.style.transformOrigin = 'left center';
+                                            zap.style.transform = `rotate(${angleZap}rad)`;
+                                            zap.style.boxShadow = s.isAngelical ? '0 0 15px #ffea00, 0 0 30px #fff' : '0 0 15px #0ff, 0 0 30px #00f';
+                                            zap.style.zIndex = '95'; zap.style.pointerEvents = 'none';
+                                            zap.style.animation = 'screenFlash 0.3s ease-out forwards';
+                                            arena.appendChild(zap);
+                                            setTimeout(()=>zap.remove(), 300);
+                                            aplicarDano(e, LIFE_PER_HIT*(s.isAngelical?8.0:4.0), s, false);
+                                            spawnFloatingText(e.x, e.y-(100*e.scale), "ZAP!", (s.isAngelical?"#ffea00":"#0ff"));
+                                            knockback(e, s.x, s.y, (s.isAngelical?100:60));
+                                            spawnSpark(e.x, e.y);
+                                        }
+                                    });
+                                    if(shocked) { playSFX(zapWallSound); spawnShockwave(s.x, s.y); }
+                                }
+                            }
+                        }
+                    }
+                    else if (dist > attackDist) { vx = Math.cos(angle) * moveSpeed; vy = Math.sin(angle) * moveSpeed; isWalking = true; }
+                    else {
+                        vx = 0; vy = 0; isWalking = false;
+                        if (Date.now() - s.lastAtk > s.aggressiveness + Math.random()*400) {
+                            let dmgMult = 1; if (s.totalDiamonds > 0) dmgMult = 2.0 + (s.totalDiamonds * 0.1); else if (s.isTop1) dmgMult = 1.3; if (s.powerups.attack) dmgMult *= 2;
+                            if(attackType === 'slam') { s.lastAtk = Date.now() + 2000; s.el.classList.add('jump-anim'); setTimeout(() => { s.x = target.x; s.y = target.y; playSFX(bhBoom); triggerScreenShake(); spawnShockwave(s.x, s.y); enemies.forEach(eid => { let e = stickmen[eid]; if(Math.hypot(e.x-s.x, e.y-s.y) < 200) { aplicarDano(e, LIFE_PER_HIT*2.5*dmgMult, s, true); knockback(e, s.x, s.y, 100); } }); setTimeout(()=>s.el.classList.remove('jump-anim'), 200); }, 600); }
+                            else if (attackType === 'spin') { playSFX(slashSound); s.el.classList.add('atk-anim'); s.lastAtk = Date.now(); enemies.forEach(eid => { let e = stickmen[eid]; if(Math.hypot(e.x - s.x, e.y - s.y) < 90 * s.scale) { aplicarDano(e, LIFE_PER_HIT * 0.6 * dmgMult, s); knockback(e, s.x, s.y, 40); } }); setTimeout(() => s.el.classList.remove('atk-anim'), 400); }
+                            else if (attackType === 'teleport') { playSFX(dashSound); spawnGhost(s); s.x = target.x + (Math.random() > 0.5 ? 40 : -40); s.y = target.y + (Math.random() * 40 - 20); s.lastAtk = Date.now(); spawnSpark(s.x, s.y); aplicarDano(target, LIFE_PER_HIT * 1.2 * dmgMult, s, true); knockback(target, s.x, s.y, 20); }
+                            else {
+                                s.el.classList.add('atk-anim'); s.lastAtk = Date.now(); playSFX(slashSound);
+                                if (attackType === 'grab') { executarGrabThrow(id, targetId); } else if (attackType === 'fast') { aplicarDano(target, LIFE_PER_HIT * 0.5 * dmgMult, s); knockback(target, s.x, s.y, 25); } else if (attackType === 'strong') { spawnShockwave(s.x, s.y); triggerScreenShake(); aplicarDano(target, LIFE_PER_HIT * 1.5 * dmgMult, s, true); knockback(target, s.x, s.y, 80); } else if (attackType === 'projectile') { let from = {x: s.x+20*Math.cos(Math.atan2(target.y-s.y,target.x-s.x)), y: s.y-(40*s.scale)+20*Math.sin(Math.atan2(target.y-s.y,target.x-s.x))}; spawnProjectile(from, {x: target.x, y: target.y-(40*target.scale)}, '#ffea00', () => { aplicarDano(target, LIFE_PER_HIT * 0.7 * dmgMult, s); knockback(target, s.x, s.y, 30); }); } else if (attackType === 'dash') { playSFX(dashSound); let angle2 = Math.atan2(target.y - s.y, target.x - s.x); s.x += Math.cos(angle2) * 50; s.y += Math.sin(angle2) * 50; spawnGhost(s); aplicarDano(target, LIFE_PER_HIT * 0.8 * dmgMult, s); knockback(target, s.x, s.y, 25); } else { target.hitsTomados++; aplicarDano(target, LIFE_PER_HIT * dmgMult, s); if (!target.dead) { if (target.hitsTomados >= 5) { spawnFloatingText(target.x, target.y - (100*target.scale), "COMBO!", "#ffea00"); playSFX(bigHitSound); target.hitsTomados = 0; knockback(target, s.x, s.y, 150); triggerScreenShake(); } else { knockback(target, s.x, s.y, 20); } } }
+                                setTimeout(() => { s.el.classList.remove('atk-anim'); }, 320);
+                            }
+                        }
+                    }
+                }
+
+                let isMobile = window.innerWidth <= 768;
+                // Impede que se escondam atrás dos botões no topo esquerdo
+                let marginYTop = Math.max(isMobile ? 120 : 150, (160 * s.scale) - 80);
+                let marginYBot = isMobile ? 80 : 140;
+                let marginXLeft = Math.max(isMobile ? 30 : 60, (40 * s.scale));
+                let marginXRight = (40 * s.scale) + (isMobile ? 20 : 40);
+
+                if (isWalking) {
+                    if (s.x < marginXLeft && vx < 0) { vx = 0; vy = vy >= 0 ? Math.max(vy, BASE_SPEED) : Math.min(vy, -BASE_SPEED); }
+                    else if (s.x > window.innerWidth - marginXRight && vx > 0) { vx = 0; vy = vy >= 0 ? Math.max(vy, BASE_SPEED) : Math.min(vy, -BASE_SPEED); }
+                    if (s.y < marginYTop && vy < 0) { vy = 0; vx = vx >= 0 ? Math.max(vx, BASE_SPEED) : Math.min(vx, -BASE_SPEED); }
+                    else if (s.y > window.innerHeight - marginYBot && vy > 0) { vy = 0; vx = vx >= 0 ? Math.max(vx, BASE_SPEED) : Math.min(vx, -BASE_SPEED); }
+                }
+
+                let sepMag = Math.hypot(sepX, sepY);
+                if (sepMag > 15) { sepX = (sepX / sepMag) * 15; sepY = (sepY / sepMag) * 15; }
+                s.x += vx + sepX + s.kbX; s.y += vy + sepY + s.kbY; s.kbX *= 0.85; s.kbY *= 0.85;
+
+                s.x = Math.max(marginXLeft, Math.min(window.innerWidth - marginXRight, s.x));
+                s.y = Math.max(marginYTop, Math.min(window.innerHeight - marginYBot, s.y));
+
+                if (isWalking) s.el.classList.add('walking'); else s.el.classList.remove('walking');
+                s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) scaleX(${s.facing})`;
+            }
+            requestAnimationFrame(update);
+        }
+
+        function grantBossOrTitan(s) {
+            if (s.totalDiamonds >= cfgGifts.angelical) {
+                if (!s.isAngelical) makeAngelical(s);
+            } else if (s.totalDiamonds >= cfgGifts.titan) {
+                if (!s.isTitan || s.isAngelical) makeTitan(s);
+            } else if (s.totalDiamonds >= cfgGifts.boss) {
+                if (!s.isBoss || s.isTitan || s.isAngelical) makeBoss(s);
+            }
+        }
+
+        function syncRankings() {
+            if(!gameActive) return;
+            let players = Object.values(stickmen).map(s => ({ id: s.id, name: s.displayName, avatar: s.avatarUrl, score: s.score, kills: s.kills || 0, diamonds: s.totalDiamonds || 0, isBot: s.isBot, dead: s.dead }));
+            let topPower = [...players].sort((a, b) => b.score - a.score).slice(0, 5);
+            let topKills = [...players].sort((a, b) => b.kills - a.kills).slice(0, 5);
+            let topDonors = [...players].sort((a, b) => b.diamonds - a.diamonds).slice(0, 5);
+
+            localStorage.setItem('stickman_rank', JSON.stringify(topPower));
+            localStorage.setItem('stickman_kill', JSON.stringify(topKills));
+            localStorage.setItem('stickman_donors', JSON.stringify(topDonors));
+
+            let vivosDonors = topDonors.filter(p => !p.dead);
+
+            if (cfgGifts.multiBoss === false) {
+                let supremeId = null;
+                let angels = vivosDonors.filter(p => p.diamonds >= cfgGifts.angelical);
+                let titans = vivosDonors.filter(p => p.diamonds >= cfgGifts.titan && p.diamonds < cfgGifts.angelical);
+                let bosses = vivosDonors.filter(p => p.diamonds >= cfgGifts.boss && p.diamonds < cfgGifts.titan);
+
+                if (angels.length > 0) supremeId = angels[0].id;
+                else if (titans.length > 0) supremeId = titans[0].id;
+                else if (bosses.length > 0) supremeId = bosses[0].id;
+
+                for (let id in stickmen) {
+                    let s = stickmen[id];
+                    if (id === supremeId) {
+                        if (!s.dead) grantBossOrTitan(s);
+                    } else {
+                        if (s.isBoss || s.isTitan || s.isAngelical) removeBoss(s);
+                    }
+                }
+            } else {
+                for (let id in stickmen) {
+                    let s = stickmen[id];
+                    if (!s.dead) {
+                        if (s.totalDiamonds >= cfgGifts.boss) grantBossOrTitan(s);
+                        else { if (s.isBoss || s.isTitan || s.isAngelical) removeBoss(s); }
+                    }
+                }
+            }
+
+            let top1Id = topPower.length > 0 && topPower[0].score > 0 ? topPower[0].id : null;
+            if (top1Id && top1Id !== currentTop1Name && currentTop1Name !== "") {
+                let top1Name = topPower[0].name;
+            }
+            currentTop1Name = top1Id;
+
+            for(let id in stickmen) {
+                stickmen[id].isTop1 = (id === top1Id);
+                if(stickmen[id].isTop1 && !stickmen[id].dead) stickmen[id].el.classList.add('fire-streak');
+                else if(!stickmen[id].isBoss && !stickmen[id].isTitan && !stickmen[id].isAngelical) stickmen[id].el.classList.remove('fire-streak');
+            }
+        }
+        setInterval(syncRankings, 1000);
+
+        // ==========================================
+        // 📡 FASE 2: RELÓGIO FISCAL E ANTENA HÍBRIDA
+        // ==========================================
+
+        // 1. Relógio Fiscal (Trava de Plano Gratuito)
+        setInterval(() => {
+            if (window.rdmPerfil === "gratuito" || window.rdmPerfil === "plus premium") {
+                let horaAtual = Date.now();
+                if (!window.rdmSessaoIniciada) window.rdmSessaoIniciada = horaAtual;
+                if ((horaAtual - window.rdmSessaoIniciada) >= ((window.rdmPerfil === "gratuito") ? 7200000 : 151200000)) {
+                    gameActive = false; pararMusicas();
+                    let bs = document.getElementById('rdm-block-screen');
+                    if (!bs) {
+                        bs = document.createElement('div'); bs.id = 'rdm-block-screen';
+                        bs.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.95); z-index:999999; display:flex; flex-direction:column; justify-content:center; align-items:center;';
+                        bs.innerHTML = `<h1 style='color:#facc15; font-size:40px; text-shadow:0 0 20px #facc15;'>⏱️ TEMPO ESGOTADO!</h1><p style='color:white; font-size:20px;'>A carga de horas do seu plano atual chegou ao fim.</p>`;
+                        document.body.appendChild(bs); if (wsNuvem) wsNuvem.close(); if (wsTikfinity) wsTikfinity.close();
+                    }
+                    return;
+                }
+            }
+        }, 1000);
+
+        // 2. Processador Unificado de Eventos (Lê a Nuvem e o TikFinity, usando API Russa)
+        async function processarEventoDaAPI(d) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            let evento = d.event; let dados = d.data;
+            if(!dados || !gameActive) return;
+
+            let nick = (dados.nickname || dados.uniqueId || dados.userId || "").trim();
+            if (!nick || nick.toLowerCase() === "none") return;
+
+            let raw_avatar = dados.profilePictureUrl || dados.avatar || dados.profilePicture;
+            let avatar_url = await obterAvatarRusso(nick, raw_avatar);
+
+            dados.uniqueId = nick;
+            dados.displayName = dados.nickname || nick;
+            dados.profilePictureUrl = avatar_url;
+
+            if (!stickmen[nick]) createStickman(dados);
+
+            let id = nick;
+
+            if (evento === "like") {
+                let qtdLikes = parseInt(dados.likeCount || dados.likes || dados.count || 1);
+                if (stickmen[id].dead) { stickmen[id].respawnTaps += qtdLikes; tentarRespawn(stickmen[id]); }
+                else { stickmen[id].score += (5 * qtdLikes); stickmen[id].tapCount += qtdLikes; }
+            }
+
+            if (evento === "gift") {
+                let diamonds = parseInt(dados.diamondCount || dados.diamonds || 1);
+                stickmen[id].hasGifted = true; stickmen[id].totalDiamonds += diamonds;
+
+                if (stickmen[id].dead) {
+                    stickmen[id].respawnTaps += (diamonds * 10); tentarRespawn(stickmen[id]);
+                } else {
+                    stickmen[id].score += (diamonds * 1500); stickmen[id].hitsTomados = 0; stickmen[id].life = Math.min(stickmen[id].maxLifeReal, stickmen[id].life + 400); atualizarBarraDeVida(stickmen[id]);
+                }
+
+                atualizarNivelPoder(stickmen[id]);
+
+                if (diamonds >= cfgGifts.angelical) narrarInteracao(`MILAGRE! ${stickmen[id].displayName} mandou um presente lendário e ascendeu ao Modo Angelical!`);
+                else if (diamonds >= cfgGifts.titan) narrarInteracao(`O impossível aconteceu! ${stickmen[id].displayName} virou TITÃ SUPREMO!`);
+                else if (diamonds >= cfgGifts.boss) narrarInteracao(`Incrível! ${stickmen[id].displayName} virou o Chefão!`);
+                else narrarInteracao(`Muito obrigado ${stickmen[id].displayName} pelo presente!`);
+
+                if (diamonds >= cfgGifts.t2 && diamonds < cfgGifts.t3) { addGiftNotification(stickmen[id].displayName, "Oásis de Cura"); triggerHealingZone(); }
+                else if (diamonds >= cfgGifts.t3 && diamonds < cfgGifts.t4) { addGiftNotification(stickmen[id].displayName, "Raios"); triggerThunderstorm(); }
+                else if (diamonds >= cfgGifts.t4) { addGiftNotification(stickmen[id].displayName, "Meteoros"); triggerMeteorShower(); }
+            }
+        }
+
+        // 3. A Nossa Antena Híbrida Inteligente
+        let conexaoNuvemEstabelecida = false; let wsNuvem = null; let wsTikfinity = null; let lastTiktokUser = "";
+
+        function conectarNuvem() {
+            let targetUser = window.rdmUser;
+            if (!targetUser) return;
+            if (conexaoNuvemEstabelecida && lastTiktokUser === targetUser) return;
+            if (wsNuvem) wsNuvem.close();
+            lastTiktokUser = targetUser;
+            wsNuvem = new WebSocket("wss://torre-de-controle-rdm.onrender.com:443/");
+            wsNuvem.onopen = () => { conexaoNuvemEstabelecida = true; };
+            wsNuvem.onmessage = (event) => { try { processarEventoDaAPI(JSON.parse(event.data)); } catch(e) {} };
+            wsNuvem.onclose = () => { conexaoNuvemEstabelecida = false; wsNuvem = null; };
+        }
+
+        function verificarEConectar() {
+            if (!wsTikfinity || wsTikfinity.readyState === WebSocket.CLOSED) {
+                wsTikfinity = new WebSocket("ws://127.0.0.1:21213/");
+                wsTikfinity.onopen = () => { if (wsNuvem) { wsNuvem.close(); wsNuvem = null; conexaoNuvemEstabelecida = false; } };
+                wsTikfinity.onmessage = (event) => { try { processarEventoDaAPI(JSON.parse(event.data)); } catch(e) {} };
+                wsTikfinity.onerror = () => { conectarNuvem(); };
+                wsTikfinity.onclose = () => { wsTikfinity = null; };
+            } else if (wsTikfinity.readyState === WebSocket.OPEN) {
+                if (wsNuvem) { wsNuvem.close(); wsNuvem = null; conexaoNuvemEstabelecida = false; }
+            }
+        }
+        setInterval(verificarEConectar, 2000);
+
+        function spawnBot() {
+            let bId = 'Clone_' + botIndex++;
+            createStickman({ uniqueId: bId, displayName: hostProfile.name || 'Clone', profilePictureUrl: hostProfile.avatar, isBot: true });
+        }
+        function forceGift() {
+            let vivos = Object.values(stickmen).filter(s => !s.dead);
+            if(vivos.length > 0) {
+                let p = vivos.find(s => s.isBot) || vivos[0];
+                p.totalDiamonds += cfgGifts.t1; atualizarNivelPoder(p); addGiftNotification(p.displayName, "Poder de Teste");
+            }
+        }
+        function forceBoss() {
+            let vivos = Object.values(stickmen).filter(s => !s.dead && !s.isBoss && !s.isTitan && !s.isAngelical);
+            if(vivos.length === 0) vivos = Object.values(stickmen).filter(s => !s.dead);
+            if(vivos.length > 0) {
+                let p = vivos.find(s => s.isBot) || vivos[0];
+                let maxDiamantes = Math.max(0, ...Object.values(stickmen).map(s => s.totalDiamonds));
+                let titanPrice = cfgGifts.titan || 150; let novaQtd = Math.max(maxDiamantes + 1, cfgGifts.boss);
+                if (novaQtd >= titanPrice) novaQtd = titanPrice - 1;
+                p.totalDiamonds = novaQtd;
+                syncRankings();
+            }
+        }
+        function forceTitan() {
+            let vivos = Object.values(stickmen).filter(s => !s.dead && !s.isTitan && !s.isAngelical);
+            if(vivos.length === 0) vivos = Object.values(stickmen).filter(s => !s.dead);
+            if(vivos.length > 0) {
+                let p = vivos.find(s => s.isBot) || vivos[0];
+                let maxDiamantes = Math.max(0, ...Object.values(stickmen).map(s => s.totalDiamonds));
+                let angelPrice = cfgGifts.angelical || 300; let novaQtd = Math.max(maxDiamantes + 1, cfgGifts.titan);
+                if (novaQtd >= angelPrice) novaQtd = angelPrice - 1;
+                p.totalDiamonds = novaQtd;
+                syncRankings();
+            }
+        }
+        function forceAngelical() {
+            let vivos = Object.values(stickmen).filter(s => !s.dead && !s.isAngelical);
+            if(vivos.length === 0) vivos = Object.values(stickmen).filter(s => !s.dead);
+            if(vivos.length > 0) {
+                let p = vivos.find(s => s.isBot) || vivos[0];
+                let maxDiamantes = Math.max(0, ...Object.values(stickmen).map(s => s.totalDiamonds));
+                p.totalDiamonds = Math.max(maxDiamantes, cfgGifts.angelical) + 1;
+                syncRankings();
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if(audioCtx.state === 'suspended') audioCtx.resume(); const key = e.key.toLowerCase();
+            if (key === 'q' || key === 'e' || key === 'r') {
+                const id = key === 'q' ? 'BootQ' : key === 'e' ? 'BootE' : 'BootR';
+                if (!stickmen[id]) { createStickman({ uniqueId: id, displayName: hostProfile.name || 'Clone', profilePictureUrl: hostProfile.avatar, isBot: true }); }
+                else { const s = stickmen[id]; if (s.dead) { s.respawnTaps++; tentarRespawn(s); } else { s.tapCount = (s.tapCount || 0) + 1; if(!s.isBoss && !s.isTitan && !s.isAngelical) { s.aggressiveness = Math.max(220, s.aggressiveness - 30); s.scale = Math.min(dynNormalMax, dynNormalBase + (s.tapCount * 0.015)); } } }
+            }
+            if (key === 'b') { forceBoss(); }
+            if (key === 't') { forceTitan(); }
+            if (key === 'g') { forceAngelical(); }
+        });
+
+        // ==========================================
+        // 📡 RECEPTOR SAAS: LÊ COMANDOS DO PAINEL HOST
+        // ==========================================
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'stickmanCommand' && e.newValue) {
+                let cmd = JSON.parse(e.newValue);
+
+                // Mapeia o comando do Painel para a Função Real do Jogo
+                if (cmd.action === 'update_gift_config') applyGiftConfig(cmd.value);
+                if (cmd.action === 'update_host_profile') applyHostProfile(cmd.value);
+                if (cmd.action === 'host_start_match') iniciarPartidaRemota(cmd.value);
+                if (cmd.action === 'host_end_match') encerrarPartidaRemota();
+                if (cmd.action === 'host_action') {
+                    if (cmd.value === 'spawnBot') spawnBot();
+                    else if (cmd.value === 'forceGift') forceGift();
+                    else if (cmd.value === 'forceBoss') forceBoss();
+                    else if (cmd.value === 'forceTitan') forceTitan();
+                    else if (cmd.value === 'forceAngelical') forceAngelical();
+                    else if (cmd.value === 'triggerMeteorShower') triggerMeteorShower();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

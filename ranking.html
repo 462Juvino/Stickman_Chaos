@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Stickman Chaos - Ranking</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap');
+        body { margin: 0; padding: 15px; background: transparent; color: #fff; font-family: 'Montserrat', sans-serif; height: 100vh; box-sizing: border-box; overflow: hidden; }
+        h2 { text-align: center; color: rgba(212, 175, 55, 0.9); text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-top: 0; font-size: 16px; margin-bottom: 15px; }
+
+        .rank-page { display: none; width: 100%; transform-origin: left center; }
+        .active-page { display: block; animation: turnPage 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        @keyframes turnPage { 0% { transform: rotateY(-90deg); opacity: 0; } 100% { transform: rotateY(0deg); opacity: 1; } }
+
+        /* Fundo bem apagado (vidro escuro) para dar destaque só às informações */
+        .rank-item { display: flex; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.35); padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(2px); }
+        .rank-pos { color: #ccc; width: 25px; font-size: 16px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+        .rank-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(212, 175, 55, 0.8); object-fit: cover; background: transparent; box-shadow: 0 0 5px #000; }
+        .rank-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-shadow: 1px 1px 3px #000; font-weight: bold; }
+        .rank-val { font-weight: 900; font-size: 18px; text-shadow: 1px 1px 3px #000; }
+        .v-pts { color: #0f0; }
+        .v-kills { color: #ff0050; }
+        .v-gifts { color: #ffea00; }
+    </style>
+</head>
+<body>
+
+    <div id="page-pts" class="rank-page active-page">
+        <h2>🏆 TOP 5 PONTUAÇÃO</h2>
+        <div id="list-pts"></div>
+    </div>
+    
+    <div id="page-kills" class="rank-page">
+        <h2>⚔️ TOP 5 ABATES</h2>
+        <div id="list-kills"></div>
+    </div>
+
+    <div id="page-gifts" class="rank-page">
+        <h2>💎 TOP 5 MOEDAS</h2>
+        <div id="list-gifts"></div>
+    </div>
+
+    <script>
+        let currentMode = 'auto';
+        let rotateTime = 5000;
+        let currentPageIdx = 0;
+        let pages = ['page-pts', 'page-kills', 'page-gifts'];
+        let rotateInterval;
+
+        // Chamado pelo Painel do Host via Python
+        function applyRankingConfig(cfg) {
+            currentMode = cfg.mode || 'auto';
+            rotateTime = (cfg.time || 5) * 1000;
+            applyMode();
+        }
+
+        function applyMode() {
+            clearInterval(rotateInterval);
+            document.querySelectorAll('.rank-page').forEach(p => p.classList.remove('active-page'));
+
+            if (currentMode === 'auto') {
+                currentPageIdx = 0;
+                document.getElementById(pages[currentPageIdx]).classList.add('active-page');
+                rotateInterval = setInterval(() => {
+                    document.getElementById(pages[currentPageIdx]).classList.remove('active-page');
+                    currentPageIdx = (currentPageIdx + 1) % pages.length;
+                    document.getElementById(pages[currentPageIdx]).classList.add('active-page');
+                }, rotateTime);
+            } else {
+                if (currentMode === 'pts') document.getElementById('page-pts').classList.add('active-page');
+                if (currentMode === 'kills') document.getElementById('page-kills').classList.add('active-page');
+                if (currentMode === 'gifts') document.getElementById('page-gifts').classList.add('active-page');
+            }
+        }
+
+        function updateLists() {
+            const getList = (key) => { try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; } };
+            
+            const rPts = getList('stickman_rank');
+            document.getElementById('list-pts').innerHTML = rPts.map((u, i) => `
+                <div class="rank-item"><span class="rank-pos">#${i+1}</span><img src="${u.avatar || ''}" class="rank-avatar" onerror="this.style.display='none'"><span class="rank-name">${u.name}</span><span class="rank-val v-pts">${Math.floor(u.score)}</span></div>
+            `).join('');
+
+            const rKills = getList('stickman_kill');
+            document.getElementById('list-kills').innerHTML = rKills.map((u, i) => `
+                <div class="rank-item"><span class="rank-pos">#${i+1}</span><img src="${u.avatar || ''}" class="rank-avatar" onerror="this.style.display='none'"><span class="rank-name">${u.name}</span><span class="rank-val v-kills">${u.kills}</span></div>
+            `).join('');
+
+            const rGifts = getList('stickman_donors');
+            document.getElementById('list-gifts').innerHTML = rGifts.map((u, i) => `
+                <div class="rank-item"><span class="rank-pos">#${i+1}</span><img src="${u.avatar || ''}" class="rank-avatar" onerror="this.style.display='none'"><span class="rank-name">${u.name}</span><span class="rank-val v-gifts">${u.diamonds}</span></div>
+            `).join('');
+        }
+
+        setInterval(updateLists, 1000);
+
+        // Carrega a config salva no início
+        let savedCfg = localStorage.getItem('ranking_config');
+        if(savedCfg) applyRankingConfig(JSON.parse(savedCfg));
+        else applyMode();
+
+        // 📡 Escuta as mudanças feitas no Painel em tempo real
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'ranking_config' && e.newValue) {
+                applyRankingConfig(JSON.parse(e.newValue));
+            }
+        });
+    </script>
+</body>
+</html>
