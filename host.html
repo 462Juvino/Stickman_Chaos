@@ -210,7 +210,7 @@
 
 
         function verificarStatusRDM() {
-            let user = localStorage.getItem('rdm_user');
+            let user = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user');
             let perfil = localStorage.getItem('rdm_perfil');
             let st = document.getElementById('lic-status');
             if (user && perfil) {
