@@ -1105,6 +1105,9 @@
         // 3. A Nossa Antena Híbrida Inteligente
         let conexaoNuvemEstabelecida = false; let wsNuvem = null; let wsTikfinity = null; let lastTiktokUser = "";
 
+        // ⚡ DESPERTADOR DA API (Acorda o servidor Render)
+        fetch("https://torre-de-controle-rdm.onrender.com/", { mode: 'no-cors' }).catch(() => {});
+
         function conectarNuvem() {
             let targetUser = window.rdmUser;
             if (!targetUser) return;
@@ -1123,6 +1126,9 @@
             wsNuvem.onopen = () => {
                 conexaoNuvemEstabelecida = true;
                 console.log(`✅ NUVEM CONECTADA! Escutando: @${targetUser}`);
+
+                // 🪄 A LINHA MÁGICA: Diz à API qual live espelhar!
+                wsNuvem.send(JSON.stringify({ action: "connect", tiktok_user: targetUser }));
 
                 // ⚠️ A PROVA VISUAL NO STICKMAN CHAOS (Usamos o letreiro gigante da arena)
                 triggerAnnouncer(`☁️ NUVEM LIGADA! (@${targetUser})`);
